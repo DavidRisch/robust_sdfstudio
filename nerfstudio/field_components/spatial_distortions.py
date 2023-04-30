@@ -17,7 +17,6 @@
 from typing import Optional, Union
 
 import torch
-from functorch import jacrev, vmap
 from torch import nn
 from torchtyping import TensorType
 
@@ -73,6 +72,8 @@ class SceneContraction(SpatialDistortion):
             return x_new
 
         if isinstance(positions, Gaussians):
+            from functorch import jacrev, vmap
+
             means = contract(positions.mean.clone())
 
             contract = lambda x: (2 - (1 / torch.linalg.norm(x, ord=self.order, dim=-1, keepdim=True))) * (
