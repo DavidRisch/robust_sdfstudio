@@ -63,6 +63,7 @@ from nerfstudio.model_components.scene_colliders import (
 from nerfstudio.models.base_model import Model, ModelConfig
 from nerfstudio.utils import colormaps
 from nerfstudio.utils.colors import get_color
+from nerfstudio.utils import writer
 
 
 @dataclass
@@ -212,6 +213,7 @@ class SurfaceModel(Model):
 
         # losses
         self.rgb_loss = L1Loss()
+        self.rgb_loss_pixelwise = L1Loss(reduction="none")
         self.eikonal_loss = MSELoss()
         self.depth_loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1)
         self.patch_loss = MultiViewLoss(
@@ -364,10 +366,16 @@ class SurfaceModel(Model):
 
         return outputs
 
-    def get_loss_dict(self, outputs, batch, metrics_dict=None) -> Dict:
+    def get_loss_dict(self, outputs, batch, metrics_dict=None, pixelwise=False) -> Dict:
         loss_dict = {}
         image = batch["image"].to(self.device)
-        loss_dict["rgb_loss"] = self.rgb_loss(image, outputs["rgb"])
+
+        if pixelwise:
+            rgb_loss = self.rgb_loss_pixelwise
+        else:
+            rgb_loss = self.rgb_loss
+
+        loss_dict["rgb_loss"] = rgb_loss(image, outputs["rgb"])
         if self.training:
             # eikonal loss
             grad_theta = outputs["eik_grad"]
@@ -512,3 +520,52 @@ class SurfaceModel(Model):
         metrics_dict["lpips"] = float(lpips)
 
         return metrics_dict, images_dict
+
+    @torch.no_grad()
+    def log_pixelwise_loss(self, ray_bundle: RayBundle, batch: Dict, step: int):
+        relevant_key_of_batch = ["image", "depth", "normal"]
+
+        # flatten image dimensions (height, width) for easier spliting later
+        ray_bundle_flattened = ray_bundle.flatten()
+        batch_flattened = {
+            key: torch.flatten(batch[key], start_dim=0, end_dim=1)
+            for key in relevant_key_of_batch
+        }
+
+        part_size = 2048
+        part_count = len(ray_bundle) // part_size
+        if part_size * part_count < len(ray_bundle):
+            part_count += 1
+
+        flat_loss_parts = []
+
+        for part_index in range(part_count):
+            ray_start_index = part_index * part_size
+            ray_past_end_index = (part_index + 1) * part_size
+
+            ray_bundle_part = ray_bundle_flattened[ray_start_index:ray_past_end_index, ...]
+            batch_part = {
+                key: batch_flattened[key][ray_start_index:ray_past_end_index, ...]
+                for key in relevant_key_of_batch
+            }
+
+            model_outputs = self(ray_bundle_part)
+            # print("model_outputs", model_outputs.keys())
+
+            loss_dict = self.get_loss_dict(outputs=model_outputs, batch=batch_part, metrics_dict=None,
+                                           pixelwise=True)
+            rgb_loss = loss_dict["rgb_loss"]
+            mono_loss = torch.mean(rgb_loss, dim=1)
+
+            flat_loss_parts.append(mono_loss.cpu())
+
+        # print("flat_loss_parts", flat_loss_parts)
+        flat_loss_all = torch.cat(flat_loss_parts, dim=0)
+        # print("flat_loss_all", flat_loss_all.shape) # torch.Size([147456])
+        shaped_loss = torch.reshape(flat_loss_all, (batch["image"].shape[0], batch["image"].shape[1], 1))
+        # print("shaped_loss", shaped_loss.shape) # torch.Size([384, 384, 1])
+        colored_loss = colormaps.apply_colormap(shaped_loss, cmap="viridis")
+        # print("colored_loss", colored_loss.shape) # torch.Size([384, 384, 3])
+
+        group = "Eval Images"
+        writer.put_image(name=group + "/" + "pixelwise rgb loss", image=colored_loss, step=step)
