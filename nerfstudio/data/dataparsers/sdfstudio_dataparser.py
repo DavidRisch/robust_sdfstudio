@@ -177,7 +177,11 @@ class SDFStudio(DataParser):
 
     def _generate_dataparser_outputs(self, split="train"):  # pylint: disable=unused-argument,too-many-statements
         # load meta data
-        meta = load_from_json(self.config.data / "meta_data.json")
+        meta_data_path = self.config.data / f"meta_data_{split}.json"
+        if not meta_data_path.is_file():
+            meta_data_path = self.config.data / "meta_data.json"
+        print("meta_data_path for split", split, "is", meta_data_path)
+        meta = load_from_json(meta_data_path)
 
         indices = list(range(len(meta["frames"])))
         # subsample to avoid out-of-memory for validation set
