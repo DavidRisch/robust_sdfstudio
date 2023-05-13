@@ -183,8 +183,8 @@ class NeuSFactoModel(NeuSModel):
         }
         return samples_and_field_outputs
 
-    def get_loss_dict(self, outputs, batch, metrics_dict=None):
-        loss_dict = super().get_loss_dict(outputs, batch, metrics_dict)
+    def get_loss_dict(self, outputs, batch, metrics_dict=None, pixelwise=False):
+        loss_dict = super().get_loss_dict(outputs, batch, metrics_dict, pixelwise=pixelwise)
 
         if self.training:
             loss_dict["interlevel_loss"] = self.config.interlevel_loss_mult * interlevel_loss(

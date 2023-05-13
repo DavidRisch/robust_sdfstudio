@@ -523,7 +523,11 @@ class SurfaceModel(Model):
 
     @torch.no_grad()
     def log_pixelwise_loss(self, ray_bundle: RayBundle, batch: Dict, step: int):
-        relevant_key_of_batch = ["image", "depth", "normal"]
+        relevant_key_of_batch = ["image"]
+        if "depth" in batch:
+            relevant_key_of_batch.append("depth")
+        if "normal" in batch:
+            relevant_key_of_batch.append("normal")
 
         # flatten image dimensions (height, width) for easier spliting later
         ray_bundle_flattened = ray_bundle.flatten()
