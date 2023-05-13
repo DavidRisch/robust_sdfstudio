@@ -41,86 +41,89 @@ torch.set_float32_matmul_precision("high")
 def main():
     # check that ScaleAndShiftInvariantLoss works
 
-    gt = torch.tensor([1, 2, 3, 4, 5]).float()
-    print("gt", gt)
-    mask = torch.tensor([True, True, True, True, True])
+    for gt in [
+        torch.tensor([1, 2, 3, 4, 5]).float(),
+        torch.tensor([10, 20, 30, 40, 50]).float()
+    ]:
+        print("\n==================\ngt", gt)
+        mask = torch.tensor([True, True, True, True, True])
 
-    for pred_1 in [gt, torch.tensor([1, 2, 3, 4, 9]).float()]:
-        print("\npred_1:", pred_1)
+        for pred_1 in [gt, torch.tensor([1, 2, 3, 4, gt[4] * 2]).float()]:
+            print("\npred_1:", pred_1)
 
-        print("\n Test with pred_1")
-        pred = torch.tensor([1, 2, 3, 4, 5])
-        print("pred", pred)
-        loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
-                                                                       target=gt.reshape(1, 1, -1),
-                                                                       mask=mask.reshape(1, 1, -1))
-        print("loss", loss)
+            print("\n Test with pred_1")
+            pred = pred_1
+            print("pred", pred)
+            loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
+                                                                           target=gt.reshape(1, 1, -1),
+                                                                           mask=mask.reshape(1, 1, -1))
+            print("loss", loss)
 
-        print("\n Test with pred_1 + ?")
-        pred = pred_1 + 0.1
-        print("pred", pred)
-        loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
-                                                                       target=gt.reshape(1, 1, -1),
-                                                                       mask=mask.reshape(1, 1, -1))
-        print("loss", loss)
+            print("\n Test with pred_1 + ?")
+            pred = pred_1 + 0.1
+            print("pred", pred)
+            loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
+                                                                           target=gt.reshape(1, 1, -1),
+                                                                           mask=mask.reshape(1, 1, -1))
+            print("loss", loss)
 
-        pred = pred_1 + 0.2
-        print("pred", pred)
-        loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
-                                                                       target=gt.reshape(1, 1, -1),
-                                                                       mask=mask.reshape(1, 1, -1))
-        print("loss", loss)
+            pred = pred_1 + 0.2
+            print("pred", pred)
+            loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
+                                                                           target=gt.reshape(1, 1, -1),
+                                                                           mask=mask.reshape(1, 1, -1))
+            print("loss", loss)
 
-        pred = pred_1 + 1
-        print("pred", pred)
-        loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
-                                                                       target=gt.reshape(1, 1, -1),
-                                                                       mask=mask.reshape(1, 1, -1))
-        print("loss", loss)
+            pred = pred_1 + 1
+            print("pred", pred)
+            loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
+                                                                           target=gt.reshape(1, 1, -1),
+                                                                           mask=mask.reshape(1, 1, -1))
+            print("loss", loss)
 
-        print("\n Test with pred_1 * ?")
-        pred = pred_1 * 1.1
-        print("pred", pred)
-        loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
-                                                                       target=gt.reshape(1, 1, -1),
-                                                                       mask=mask.reshape(1, 1, -1))
-        print("loss", loss)
+            print("\n Test with pred_1 * ?")
+            pred = pred_1 * 1.1
+            print("pred", pred)
+            loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
+                                                                           target=gt.reshape(1, 1, -1),
+                                                                           mask=mask.reshape(1, 1, -1))
+            print("loss", loss)
 
-        pred = pred_1 * 1.2
-        print("pred", pred)
-        loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
-                                                                       target=gt.reshape(1, 1, -1),
-                                                                       mask=mask.reshape(1, 1, -1))
-        print("loss", loss)
+            pred = pred_1 * 1.2
+            print("pred", pred)
+            loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
+                                                                           target=gt.reshape(1, 1, -1),
+                                                                           mask=mask.reshape(1, 1, -1))
+            print("loss", loss)
 
-        pred = pred_1 * 2
-        print("pred", pred)
-        loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
-                                                                       target=gt.reshape(1, 1, -1),
-                                                                       mask=mask.reshape(1, 1, -1))
-        print("loss", loss)
+            pred = pred_1 * 2
+            print("pred", pred)
+            loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
+                                                                           target=gt.reshape(1, 1, -1),
+                                                                           mask=mask.reshape(1, 1, -1))
+            print("loss", loss)
 
-        print("\n Test with pred_1 * ? + ?")
-        pred = pred_1 * 1.1 + 1
-        print("pred", pred)
-        loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
-                                                                       target=gt.reshape(1, 1, -1),
-                                                                       mask=mask.reshape(1, 1, -1))
-        print("loss", loss)
+            print("\n Test with pred_1 * ? + ?")
+            pred = pred_1 * 1.1 + 1
+            print("pred", pred)
+            loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
+                                                                           target=gt.reshape(1, 1, -1),
+                                                                           mask=mask.reshape(1, 1, -1))
+            print("loss", loss)
 
-        pred = pred_1 * 1.2 + 10
-        print("pred", pred)
-        loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
-                                                                       target=gt.reshape(1, 1, -1),
-                                                                       mask=mask.reshape(1, 1, -1))
-        print("loss", loss)
+            pred = pred_1 * 1.2 + 10
+            print("pred", pred)
+            loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
+                                                                           target=gt.reshape(1, 1, -1),
+                                                                           mask=mask.reshape(1, 1, -1))
+            print("loss", loss)
 
-        pred = pred_1 * 2 + 5
-        print("pred", pred)
-        loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
-                                                                       target=gt.reshape(1, 1, -1),
-                                                                       mask=mask.reshape(1, 1, -1))
-        print("loss", loss)
+            pred = pred_1 * 2 + 5
+            print("pred", pred)
+            loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1).forward(prediction=pred.reshape(1, 1, -1),
+                                                                           target=gt.reshape(1, 1, -1),
+                                                                           mask=mask.reshape(1, 1, -1))
+            print("loss", loss)
 
 
 if __name__ == "__main__":
