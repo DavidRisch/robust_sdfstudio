@@ -224,22 +224,37 @@ class SDFStudio(DataParser):
                 assert meta["has_mono_prior"]
                 # load mono depth
                 depth = np.load(self.config.data / frame["mono_depth_path"])
+                assert len(depth.shape) == 2 and depth.shape[0] > 99 and depth.shape[1] > 99
+                assert np.min(depth) >= 0
                 depth_images.append(torch.from_numpy(depth).float())
 
                 # load mono normal
                 normal = np.load(self.config.data / frame["mono_normal_path"])
 
+                assert np.min(normal) >= 0 and np.max(normal) <= 1
+
                 # transform normal to world coordinate system
                 normal = normal * 2.0 - 1.0  # omnidata output is normalized so we convert it back to normal here
+
+                assert len(normal.shape) == 3 and normal.shape[0] == 3 and normal.shape[1] > 99 and normal.shape[2] > 99
+
+                # normal_value_range_by_axis = [(np.min(normal[i]), np.max(normal[i])) for i in range(3)]
+                # does not always hold true in practice: assert normal_value_range_by_axis[2][1] <= 0
+
                 normal = torch.from_numpy(normal).float()
 
                 rot = camtoworld[:3, :3]
 
                 normal_map = normal.reshape(3, -1)
+                assert len(normal_map.shape) == 2 and normal_map.shape[0] == 3 and normal_map.shape[1] > 99
                 normal_map = torch.nn.functional.normalize(normal_map, p=2, dim=0)
+                assert len(normal_map.shape) == 2 and normal_map.shape[0] == 3 and normal_map.shape[1] > 99
 
                 normal_map = rot @ normal_map
+                assert len(normal_map.shape) == 2 and normal_map.shape[0] == 3 and normal_map.shape[1] > 99
                 normal_map = normal_map.permute(1, 0).reshape(*normal.shape[1:], 3)
+                assert len(normal_map.shape) == 3 and normal_map.shape[0] > 99 and normal_map.shape[1] > 99 and \
+                       normal_map.shape[2] == 3
                 normal_images.append(normal_map)
 
             if self.config.include_sensor_depth:
