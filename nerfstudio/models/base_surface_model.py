@@ -31,6 +31,15 @@ from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 from torchtyping import TensorType
 from typing_extensions import Literal
 
+#from chamfer_distance import ChamferDistance as chamfer_dist ### Newly added by Max
+import open3d as o3d ### Newly added by Max
+import numpy as np
+from pathlib import Path ### Newly added by Max
+from nerfstudio.exporter.exporter_utils import generate_point_cloud ### Newly added by Max
+from nerfstudio.utils.eval_utils import eval_setup ### Newly added by Max
+from nerfstudio.pipelines.base_pipeline import Pipeline ### Newly added by Max
+
+
 from nerfstudio.cameras.rays import RayBundle
 from nerfstudio.field_components.encodings import NeRFEncoding
 from nerfstudio.field_components.field_heads import FieldHeadNames
@@ -65,6 +74,12 @@ from nerfstudio.utils import colormaps
 from nerfstudio.utils.colors import get_color
 
 
+@dataclass ## Newly added by Max
+class Pathcollector:
+    
+    load_config: Path
+    """Path to the config YAML file."""
+    
 @dataclass
 class SurfaceModelConfig(ModelConfig):
     """Nerfacto Model Config"""
@@ -223,6 +238,8 @@ class SurfaceModel(Model):
         self.psnr = PeakSignalNoiseRatio(data_range=1.0)
         self.ssim = structural_similarity_index_measure
         self.lpips = LearnedPerceptualImagePatchSimilarity()
+        
+        #self.chamfer = chamfer_dist() # Newly added by Max
 
     def get_param_groups(self) -> Dict[str, List[Parameter]]:
         param_groups = {}
@@ -506,9 +523,37 @@ class SurfaceModel(Model):
         psnr = self.psnr(image, rgb)
         ssim = self.ssim(image, rgb)
         lpips = self.lpips(image, rgb)
+        
+        
+        _, pipeline, _ = eval_setup(Path(r"/home/max/robust_sdfstudio/outputs/neus-facto-dtu65/neus-facto/2023-05-17_010500/config.yml")) #### Newly added by Max
+        
+        pcd_recon = generate_point_cloud(
+            pipeline=pipeline,
+            num_points=100000,
+            remove_outliers=True,
+            estimate_normals=False,
+            rgb_output_name="rgb",
+            depth_output_name="depth",
+            normal_output_name=None,
+            use_bounding_box=False,
+            bounding_box_min= (-1, -1, -1),
+            bounding_box_max= (1, 1, 1),
+            std_ratio=10.0,
+        ) ### Newly added by Max
+        
+        path = '/home/max/robust_sdfstudio_CD/data/sdfstudio-demo-data/dtu-scan65/GT_point_cloud/stl065_total.ply'
+        pcd_gt = o3d.io.read_point_cloud(path) ### Newly added by Max
+        
+        distance1 = pcd_gt.compute_point_cloud_distance(pcd_recon) ### Newly added by Max
+        distance2 = pcd_recon.compute_point_cloud_distance(pcd_gt) ### Newly added by Max
+        
+        chamfer = np.mean(distance1) + np.mean(distance2) ### Newly added by Max          
+        
+        #chamfer = self.chamfer(pcd, rgb) ### Newly added by Max
 
         # all of these metrics will be logged as scalars
         metrics_dict = {"psnr": float(psnr.item()), "ssim": float(ssim)}  # type: ignore
         metrics_dict["lpips"] = float(lpips)
+        metrics_dict["chamfer"] = float(chamfer) ###Newly added by Max
 
         return metrics_dict, images_dict
