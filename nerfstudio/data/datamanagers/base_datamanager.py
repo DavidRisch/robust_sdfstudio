@@ -64,6 +64,8 @@ from nerfstudio.model_components.ray_generators import RayGenerator
 from nerfstudio.utils.images import BasicImages
 from nerfstudio.utils.misc import IterableWrapper
 
+from nerfstudio.robust.print_utils import print_tensor, print_tensor_dict
+
 CONSOLE = Console(width=120)
 
 AnnotatedDataParserUnion = tyro.conf.OmitSubcommandPrefixes[  # Omit prefixes of flags in subcommands.
@@ -264,9 +266,9 @@ class VanillaDataManagerConfig(InstantiateConfig):
     """Specifies the dataparser used to unpack the data."""
     train_num_rays_per_batch: int = 1024
     """Number of rays per batch to use per training iteration."""
-    train_num_images_to_sample_from: int = -1
+    train_num_images_to_sample_from: int = 1  # very important that this is 1 so that mono depth loss works properly!
     """Number of images to sample during training iteration."""
-    train_num_times_to_repeat_images: int = -1
+    train_num_times_to_repeat_images: int = 1  # if train_num_images_to_sample_from is not -1 this should also not be -1, otherwise some images will never be used for training!
     """When not training on all images, number of iterations before picking new
     images. If -1, never pick new images."""
     eval_num_rays_per_batch: int = 1024
@@ -384,6 +386,13 @@ class VanillaDataManager(DataManager):  # pylint: disable=abstract-method
             num_workers=self.world_size * 2,
             shuffle=False,
         )
+        self.train_dataloader = RandIndicesEvalDataloader(
+            input_dataset=self.train_dataset,
+            image_indices=None,
+            device=self.device,
+            num_workers=self.world_size * 2,
+            shuffle=False,
+        )
 
     def setup_eval(self):
         """Sets up the data loader for evaluation"""
@@ -421,6 +430,25 @@ class VanillaDataManager(DataManager):  # pylint: disable=abstract-method
 
     def next_train(self, step: int) -> Tuple[RayBundle, Dict]:
         """Returns the next batch of data from the train dataloader."""
+        self.train_count += 1
+        image_batch = next(self.iter_train_image_dataloader)
+        batch = self.train_pixel_sampler.sample(image_batch)
+        ray_indices = batch["indices"]
+        ray_bundle = self.train_ray_generator(ray_indices)
+        return ray_bundle, batch
+
+    def next_train_image(self, step: int) -> Tuple[int, RayBundle, Dict]:
+        for camera_ray_bundle, batch in self.train_dataloader:
+            assert camera_ray_bundle.camera_indices is not None
+            if isinstance(batch["image"], BasicImages):  # If this is a generalized dataset, we need to get image tensor
+                batch["image"] = batch["image"].images[0]
+                camera_ray_bundle = camera_ray_bundle.reshape((*batch["image"].shape[:-1], 1))
+            image_idx = int(camera_ray_bundle.camera_indices[0, 0, 0])
+            return image_idx, camera_ray_bundle, batch
+        raise ValueError("No more train images")
+
+    def train_from_batch(self, image_batch: Dict[str, Any]) -> Tuple[RayBundle, Dict]:
+        """Returns the a batch of training data from a batch containing a complete image (as it is normally used during evaluation)."""
         self.train_count += 1
         image_batch = next(self.iter_train_image_dataloader)
         batch = self.train_pixel_sampler.sample(image_batch)

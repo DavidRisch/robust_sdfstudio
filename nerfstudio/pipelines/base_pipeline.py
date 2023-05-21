@@ -50,6 +50,7 @@ from nerfstudio.models.base_model import Model, ModelConfig
 from nerfstudio.utils import profiler
 from nerfstudio.utils.images import BasicImages
 
+from nerfstudio.robust.print_utils import print_tensor, print_tensor_dict
 
 def module_wrapper(ddp_or_model: Union[DDP, Model]) -> Model:
     """
@@ -315,10 +316,57 @@ class VanillaPipeline(Pipeline):
         assert "num_rays" not in metrics_dict
         metrics_dict["num_rays"] = len(camera_ray_bundle)
 
-        self.model.log_pixelwise_loss(ray_bundle=camera_ray_bundle, batch=batch, step=step)
+        image_width = batch["image"].shape[1]
+        image_height = batch["image"].shape[0]
+        self.model.log_pixelwise_loss(ray_bundle=camera_ray_bundle, batch=batch, step=step,
+                                      log_group_name="Eval Images", image_width=image_width, image_height=image_height)
 
         self.train()
         return metrics_dict, images_dict
+
+    @profiler.time_function
+    def get_train_image_metrics_and_images(self, step: int):
+        self.eval()
+
+        image_idx, camera_ray_bundle, batch = self.datamanager.next_train_image(step)
+
+        outputs = self.model.get_outputs_for_camera_ray_bundle(camera_ray_bundle)
+        metrics_dict, images_dict = self.model.get_image_metrics_and_images(outputs, batch)
+        assert "image_idx" not in metrics_dict
+        metrics_dict["image_idx"] = image_idx
+        assert "num_rays" not in metrics_dict
+        metrics_dict["num_rays"] = len(camera_ray_bundle)
+
+        image_width = batch["image"].shape[1]
+        image_height = batch["image"].shape[0]
+        self.model.log_pixelwise_loss(ray_bundle=camera_ray_bundle, batch=batch, step=step,
+                                      log_group_name="Train Images", image_width=image_width, image_height=image_height)
+
+        self.train()
+        return metrics_dict, images_dict
+
+    @profiler.time_function
+    def get_train_batch_metrics_and_images(self, step: int):
+        self.eval()
+
+        image_idx, full_ray_bundle, full_batch = self.datamanager.next_train_image(step)
+
+        print_tensor("full_ray_bundle.origins", full_ray_bundle.origins)
+
+        train_ray_bundle, train_batch = self.datamanager.train_from_batch(full_batch)
+
+        print_tensor("train_ray_bundle.origins", train_ray_bundle.origins)
+
+        image_width = full_batch["image"].shape[1]
+        image_height = full_batch["image"].shape[0]
+
+        self.model.log_pixelwise_loss(ray_bundle=train_ray_bundle, batch=train_batch, step=step,
+                                      log_group_name="Train Batches", image_width=image_width,
+                                      image_height=image_height)
+
+        self.train()
+        # TODO: also log gt/pred rgb etc
+        return {}, {}
 
     @profiler.time_function
     def get_average_eval_image_metrics(self, step: Optional[int] = None):

@@ -356,6 +356,34 @@ class Trainer:
             for image_name, image in images_dict.items():
                 writer.put_image(name=group + "/" + image_name, image=image, step=step)
 
+            with TimeWriter(writer, EventName.TEST_RAYS_PER_SEC, write=False) as test_t:
+                metrics_dict, images_dict = self.pipeline.get_train_image_metrics_and_images(step=step)
+            writer.put_time(
+                name=EventName.TEST_RAYS_PER_SEC,
+                duration=metrics_dict["num_rays"] / test_t.duration,
+                step=step,
+                avg_over_steps=True,
+            )
+            writer.put_dict(name="Train Images Metrics", scalar_dict=metrics_dict, step=step)
+            group = "Train Images"
+            for image_name, image in images_dict.items():
+                writer.put_image(name=group + "/" + image_name, image=image, step=step)
+
+            with TimeWriter(writer, EventName.TEST_RAYS_PER_SEC, write=False) as test_t:
+                metrics_dict, images_dict = self.pipeline.get_train_batch_metrics_and_images(step=step)
+
+            # TODO: also log gt/pred rgb etc
+            # writer.put_time(
+            #     name=EventName.TEST_RAYS_PER_SEC,
+            #     duration=metrics_dict["num_rays"] / test_t.duration,
+            #     step=step,
+            #     avg_over_steps=True,
+            # )
+            # writer.put_dict(name="Train Images Metrics", scalar_dict=metrics_dict, step=step)
+            # group = "Train Images"
+            # for image_name, image in images_dict.items():
+            #     writer.put_image(name=group + "/" + image_name, image=image, step=step)
+
         # all eval images
         if step_check(step, self.config.trainer.steps_per_eval_all_images):
             metrics_dict, _ = self.pipeline.get_average_eval_image_metrics(step=step)

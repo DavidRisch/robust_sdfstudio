@@ -214,5 +214,6 @@ class Model(nn.Module):
         state = {key.replace("module.", ""): value for key, value in loaded_state["model"].items()}
         self.load_state_dict(state)  # type: ignore
 
-    def log_pixelwise_loss(self, ray_bundle: RayBundle, batch: Dict, step: int):
+    def log_pixelwise_loss(self, ray_bundle: RayBundle, batch: Dict, step: int, log_group_name: str, image_width: int,
+                           image_height: int):
         print("WARNING: log_pixelwise_loss is not implemented for this model")

@@ -24,6 +24,8 @@ from torchtyping import TensorType
 from nerfstudio.cameras.rays import RaySamples
 from nerfstudio.field_components.field_heads import FieldHeadNames
 
+from nerfstudio.robust.print_utils import print_tensor
+
 L1Loss = nn.L1Loss
 MSELoss = nn.MSELoss
 
@@ -190,12 +192,38 @@ def orientation_loss(
 
 
 def pred_normal_loss(
-    weights: TensorType["bs":..., "num_samples", 1],
-    normals: TensorType["bs":..., "num_samples", 3],
-    pred_normals: TensorType["bs":..., "num_samples", 3],
+        weights: TensorType["bs":..., "num_samples", 1],
+        normals: TensorType["bs":..., "num_samples", 3],
+        pred_normals: TensorType["bs":..., "num_samples", 3],
 ):
     """Loss between normals calculated from density and normals from prediction network."""
     return (weights[..., 0] * (1.0 - torch.sum(normals * pred_normals, dim=-1))).sum(dim=-1)
+
+
+def monosdf_normal_loss_pixelwise_l1(normal_pred: torch.Tensor, normal_gt: torch.Tensor):
+    """ a part of the monosdf_normal_loss function
+
+    Args:
+        normal_pred (torch.Tensor): volume rendered normal
+        normal_gt (torch.Tensor): monocular normal
+    """
+    normal_gt = torch.nn.functional.normalize(normal_gt, p=2, dim=-1)
+    normal_pred = torch.nn.functional.normalize(normal_pred, p=2, dim=-1)
+    l1 = torch.abs(normal_pred - normal_gt).sum(dim=-1)
+    return l1
+
+
+def monosdf_normal_loss_pixelwise_cos(normal_pred: torch.Tensor, normal_gt: torch.Tensor):
+    """ a part of the monosdf_normal_loss function
+
+    Args:
+        normal_pred (torch.Tensor): volume rendered normal
+        normal_gt (torch.Tensor): monocular normal
+    """
+    normal_gt = torch.nn.functional.normalize(normal_gt, p=2, dim=-1)
+    normal_pred = torch.nn.functional.normalize(normal_pred, p=2, dim=-1)
+    cos = (1.0 - torch.sum(normal_pred * normal_gt, dim=-1))
+    return cos
 
 
 def monosdf_normal_loss(normal_pred: torch.Tensor, normal_gt: torch.Tensor):
@@ -236,6 +264,13 @@ def compute_scale_and_shift(prediction, target, mask):
     return x_0, x_1
 
 
+def reduction_none(image_loss, M):
+    """
+    Do not reduce the dimensionality at all. Needed to later log or filter the loss of individual pixels.
+    """
+    return image_loss
+
+
 def reduction_batch_based(image_loss, M):
     # average of all valid pixels of the batch
 
@@ -260,15 +295,33 @@ def reduction_image_based(image_loss, M):
 
 
 def mse_loss(prediction, target, mask, reduction=reduction_batch_based):
-
     M = torch.sum(mask, (1, 2))
     res = prediction - target
-    image_loss = torch.sum(mask * res * res, (1, 2))
+    image_loss_old = torch.sum(mask * res * res, (1, 2))
+
+    if reduction == reduction_none:
+        image_loss = mask * res * res
+        image_loss /= 2.0  # needed to account for the '2 * M' in the call to reduction. No idea why
+    else:
+        image_loss = torch.sum(mask * res * res, (1, 2))
+
+    # print("mse_loss mse_loss mse_loss")
+    # print("reduction", reduction)
+    # print_tensor("prediction", prediction)
+    # print_tensor("target", target)
+    # print_tensor("mask", mask)
+    # print_tensor("M", M)
+    # print_tensor("image_loss", image_loss)
+    # print_tensor("image_loss_old", image_loss_old)
+    # print_tensor("res", res)
 
     return reduction(image_loss, 2 * M)
 
 
 def gradient_loss(prediction, target, mask, reduction=reduction_batch_based):
+    # print("gradient_loss gradient_loss gradient_loss")
+    # print_tensor("prediction", prediction)
+    # print_tensor("target", target)
 
     M = torch.sum(mask, (1, 2))
 
@@ -283,7 +336,20 @@ def gradient_loss(prediction, target, mask, reduction=reduction_batch_based):
     mask_y = torch.mul(mask[:, 1:, :], mask[:, :-1, :])
     grad_y = torch.mul(mask_y, grad_y)
 
-    image_loss = torch.sum(grad_x, (1, 2)) + torch.sum(grad_y, (1, 2))
+    # print_tensor("grad_x", grad_x)
+    # print_tensor("grad_y", grad_y)
+
+    image_loss_old = torch.sum(grad_x, (1, 2)) + torch.sum(grad_y, (1, 2))
+
+    # print_tensor("image_loss_old", image_loss_old)
+
+    if reduction == reduction_none:
+        # TODO: fails because of different shapes. Something is completely wrong here
+        image_loss = grad_x + grad_y
+    else:
+        image_loss = torch.sum(grad_x, (1, 2)) + torch.sum(grad_y, (1, 2))
+
+    # print_tensor("image_loss", image_loss)
 
     return reduction(image_loss, M)
 
@@ -294,8 +360,12 @@ class MiDaSMSELoss(nn.Module):
 
         if reduction == "batch-based":
             self.__reduction = reduction_batch_based
-        else:
+        elif reduction == "image-based":
             self.__reduction = reduction_image_based
+        elif reduction == "none":
+            self.__reduction = reduction_none
+        else:
+            raise RuntimeError("Unknown reduction: " + reduction)
 
     def forward(self, prediction, target, mask):
         return mse_loss(prediction, target, mask, reduction=self.__reduction)
@@ -307,13 +377,23 @@ class GradientLoss(nn.Module):
 
         if reduction == "batch-based":
             self.__reduction = reduction_batch_based
-        else:
+        elif reduction == "image-based":
             self.__reduction = reduction_image_based
+        elif reduction == "none":
+            self.__reduction = reduction_none
+        else:
+            raise RuntimeError("Unknown reduction: " + reduction)
 
         self.__scales = scales
 
     def forward(self, prediction, target, mask):
-        total = 0
+        if self.__reduction != reduction_none:
+            total = 0
+        else:
+            total = torch.zeros_like(target)
+
+        # print("GradientLoss GradientLoss GradientLoss")
+        # print_tensor("total", total)
 
         for scale in range(self.__scales):
             step = pow(2, scale)
@@ -324,6 +404,7 @@ class GradientLoss(nn.Module):
                 mask[:, ::step, ::step],
                 reduction=self.__reduction,
             )
+            # print_tensor("total", total)
 
         return total
 
@@ -339,13 +420,17 @@ class ScaleAndShiftInvariantLoss(nn.Module):
         self.__prediction_ssi = None
 
     def forward(self, prediction, target, mask):
-
         scale, shift = compute_scale_and_shift(prediction, target, mask)
+        # print_tensor("ScaleAndShiftInvariantLoss.scale", scale)
+        # print_tensor("ScaleAndShiftInvariantLoss.shift", shift)
         self.__prediction_ssi = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
+        # print_tensor("ScaleAndShiftInvariantLoss.__prediction_ssi", self.__prediction_ssi)
 
         total = self.__data_loss(self.__prediction_ssi, target, mask)
+        # print_tensor("ScaleAndShiftInvariantLoss.total", total)
         if self.__alpha > 0:
             total += self.__alpha * self.__regularization_loss(self.__prediction_ssi, target, mask)
+            # print_tensor("ScaleAndShiftInvariantLoss.total", total)
 
         return total
 

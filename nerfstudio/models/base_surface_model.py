@@ -18,6 +18,7 @@ Implementation of Base surface model.
 
 from __future__ import annotations
 
+import copy
 from abc import abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Type
@@ -46,6 +47,8 @@ from nerfstudio.model_components.losses import (
     SensorDepthLoss,
     compute_scale_and_shift,
     monosdf_normal_loss,
+    monosdf_normal_loss_pixelwise_l1,
+    monosdf_normal_loss_pixelwise_cos,
 )
 from nerfstudio.model_components.patch_warping import PatchWarping
 from nerfstudio.model_components.ray_samplers import LinearDisparitySampler
@@ -64,6 +67,10 @@ from nerfstudio.models.base_model import Model, ModelConfig
 from nerfstudio.utils import colormaps
 from nerfstudio.utils.colors import get_color
 from nerfstudio.utils import writer
+
+from nerfstudio.robust.loss_collection_unordered import LossCollectionUnordered
+from nerfstudio.robust.loss_collection_spatial import LossCollectionSpatial
+from nerfstudio.robust.print_utils import print_tensor_dict, print_tensor
 
 
 @dataclass
@@ -215,7 +222,10 @@ class SurfaceModel(Model):
         self.rgb_loss = L1Loss()
         self.rgb_loss_pixelwise = L1Loss(reduction="none")
         self.eikonal_loss = MSELoss()
-        self.depth_loss = ScaleAndShiftInvariantLoss(alpha=0.5, scales=1)
+        depth_loss_alpha = 0.5
+        depth_loss_alpha = 0  # TODO: gradient_loss does not work with pixelweise yet
+        self.depth_loss = ScaleAndShiftInvariantLoss(alpha=depth_loss_alpha, scales=1)
+        self.depth_loss_pixelwise = ScaleAndShiftInvariantLoss(alpha=depth_loss_alpha, scales=1, reduction="none")
         self.patch_loss = MultiViewLoss(
             patch_size=self.config.patch_size, topk=self.config.topk, min_patch_variance=self.config.min_patch_variance
         )
@@ -366,6 +376,43 @@ class SurfaceModel(Model):
 
         return outputs
 
+    def get_loss_collection(self, outputs: Dict, batch: Dict, pixel_coordinates_x: TensorType[...] = None,
+                            pixel_coordinates_y: TensorType[...] = None):
+        loss_collection = LossCollectionUnordered()
+        loss_collection.pixel_coordinates_x = pixel_coordinates_x
+        loss_collection.pixel_coordinates_y = pixel_coordinates_y
+
+        rgb_image_gt = batch["image"].to(self.device)
+        rgb_image_prediction = outputs["rgb"]
+        pixelwise_rgb_loss_with_channels = self.rgb_loss_pixelwise(rgb_image_gt, rgb_image_prediction)
+        loss_collection.pixelwise_rgb_loss = torch.mean(pixelwise_rgb_loss_with_channels, dim=1)
+
+        if "normal" in batch and self.config.mono_normal_loss_mult > 0.0:
+            normal_image_gt = batch["normal"].to(self.device)
+            normal_image_pred = outputs["normal"]
+            loss_collection.pixelwise_normal_l1 = monosdf_normal_loss_pixelwise_l1(normal_image_pred, normal_image_gt)
+            loss_collection.pixelwise_normal_cos = monosdf_normal_loss_pixelwise_cos(normal_image_pred, normal_image_gt)
+
+        if "depth" in batch and self.config.mono_depth_loss_mult > 0.0:
+            # TODO check it's true that's we sample from only a single image
+            # TODO only supervised pixel that hit the surface and remove hard-coded scaling for depth
+            depth_image_gt = batch["depth"].to(self.device)[..., None]
+            depth_image_pred = outputs["depth"]
+
+            depth_image_gt_reshaped_scaled_and_shifted = (depth_image_gt * 50 + 0.5).reshape(1, 32, -1)
+            depth_image_pred_reshaped = depth_image_pred.reshape(1, 32, -1)
+
+            mask = torch.ones_like(depth_image_gt).reshape(1, 32, -1).bool()
+            loss_collection.valid_depth_pixel_count = torch.sum(mask)
+            # print("valid_depth_pixel_count", loss_collection.valid_depth_pixel_count)
+
+            pixelwise_depth_loss = self.depth_loss_pixelwise(depth_image_pred_reshaped,
+                                                             depth_image_gt_reshaped_scaled_and_shifted,
+                                                             mask)
+            loss_collection.pixelwise_depth_loss = pixelwise_depth_loss.flatten()
+
+        return loss_collection
+
     def get_loss_dict(self, outputs, batch, metrics_dict=None, pixelwise=False) -> Dict:
         loss_dict = {}
         image = batch["image"].to(self.device)
@@ -436,13 +483,26 @@ class SurfaceModel(Model):
                 sparse_sfm_points = batch["sparse_sfm_points"].to(self.device)
                 sparse_sfm_points_sdf = self.field.forward_geonetwork(sparse_sfm_points)[:, 0].contiguous()
                 loss_dict["sparse_sfm_points_sdf_loss"] = (
-                    torch.mean(torch.abs(sparse_sfm_points_sdf)) * self.config.sparse_points_sdf_loss_mult
+                        torch.mean(torch.abs(sparse_sfm_points_sdf)) * self.config.sparse_points_sdf_loss_mult
                 )
 
             # total variational loss for multi-resolution periodic feature volume
             if self.config.periodic_tvl_mult > 0.0:
                 assert self.field.config.encoding_type == "periodic"
                 loss_dict["tvl_loss"] = self.field.encoding.get_total_variation_loss() * self.config.periodic_tvl_mult
+
+        # print_tensor_dict("loss_dict", loss_dict)
+
+        loss_dict_from_loss_collection = {}
+        loss_collection: LossCollectionUnordered = self.get_loss_collection(outputs=outputs, batch=batch)
+        # loss_collection.print_components()
+        loss_collection.update_dict_with_scalar_losses(loss_dict=loss_dict_from_loss_collection,
+                                                       normal_loss_mult=self.config.mono_normal_loss_mult,
+                                                       depth_loss_mult=self.config.mono_depth_loss_mult)
+        # print_tensor_dict("loss_dict_from_loss_collection", loss_dict_from_loss_collection)
+        for key in ["rgb_loss", "depth_loss", "normal_loss"]:
+            if key in loss_dict:
+                assert torch.all(torch.abs(loss_dict[key] - loss_dict_from_loss_collection[key]) < 0.001)
 
         return loss_dict
 
@@ -522,8 +582,26 @@ class SurfaceModel(Model):
         return metrics_dict, images_dict
 
     @torch.no_grad()
-    def log_pixelwise_loss(self, ray_bundle: RayBundle, batch: Dict, step: int):
-        relevant_key_of_batch = ["image"]
+    def log_pixelwise_loss(self, ray_bundle: RayBundle, batch: Dict, step: int, log_group_name: str, image_width: int,
+                           image_height: int):
+        if "indices" in batch:
+            batch["pixel_coordinates_y"], batch["pixel_coordinates_x"] = batch["indices"][:, 1], batch["indices"][:, 2]
+        elif batch["image"].shape[1] == image_width and batch["image"].shape[0] == image_height:
+            # this is a full image, gerate a grid of pixel coodinates
+            #         batch["pixel_coordinates_y"], batch["pixel_coordinates_x"] = torch.stack(torch.meshgrid(torch.arange(image_height), torch.arange(image_width), indexing="ij"), dim=-1)
+            batch["pixel_coordinates_y"], batch["pixel_coordinates_x"] = torch.meshgrid(
+                torch.arange(image_height, dtype=torch.long), torch.arange(image_width, dtype=torch.long),
+                indexing="ij")
+        else:
+            raise RuntimeError(
+                "Failed to optain pixel coordinates: Batch does not contain 'indices' key and does not seem to be a full image ")
+
+        # print("pixel_coordinates_y", batch["pixel_coordinates_y"])
+        # print("pixel_coordinates_x", batch["pixel_coordinates_x"])
+
+        # print_tensor_dict("log_pixelwise_loss batch", batch)
+
+        relevant_key_of_batch = ["pixel_coordinates_x", "pixel_coordinates_y", "image"]
         if "depth" in batch:
             relevant_key_of_batch.append("depth")
         if "normal" in batch:
@@ -531,45 +609,98 @@ class SurfaceModel(Model):
 
         # flatten image dimensions (height, width) for easier spliting later
         ray_bundle_flattened = ray_bundle.flatten()
-        batch_flattened = {
-            key: torch.flatten(batch[key], start_dim=0, end_dim=1)
-            for key in relevant_key_of_batch
-        }
+        if len(batch["image"].shape) == 3:
+            batch_flattened = {
+                key: torch.flatten(batch[key], start_dim=0, end_dim=1)
+                for key in relevant_key_of_batch
+            }
+        elif len(batch["image"].shape) == 2:
+            batch_flattened = {
+                key: batch[key]
+                for key in relevant_key_of_batch
+            }
+        else:
+            assert False
 
-        part_size = 2048
+        part_size = 4096
         part_count = len(ray_bundle) // part_size
         if part_size * part_count < len(ray_bundle):
             part_count += 1
 
-        flat_loss_parts = []
+        # print("part_count", part_count)
+
+        loss_collections: List[LossCollectionUnordered] = []
 
         for part_index in range(part_count):
-            ray_start_index = part_index * part_size
-            ray_past_end_index = (part_index + 1) * part_size
-
-            ray_bundle_part = ray_bundle_flattened[ray_start_index:ray_past_end_index, ...]
+            ray_bundle_part = ray_bundle_flattened[part_index::part_count, ...]
             batch_part = {
-                key: batch_flattened[key][ray_start_index:ray_past_end_index, ...]
+                key: batch_flattened[key][part_index::part_count, ...]
                 for key in relevant_key_of_batch
             }
 
             model_outputs = self(ray_bundle_part)
-            # print("model_outputs", model_outputs.keys())
 
-            loss_dict = self.get_loss_dict(outputs=model_outputs, batch=batch_part, metrics_dict=None,
-                                           pixelwise=True)
-            rgb_loss = loss_dict["rgb_loss"]
-            mono_loss = torch.mean(rgb_loss, dim=1)
+            loss_collection: LossCollectionUnordered = self.get_loss_collection(
+                outputs=model_outputs, batch=batch_part,
+                pixel_coordinates_x=batch_part["pixel_coordinates_x"],
+                pixel_coordinates_y=batch_part["pixel_coordinates_y"])
+            loss_collection.print_components()
 
-            flat_loss_parts.append(mono_loss.cpu())
+            loss_collection.to_device_inplace(device="cpu")
+            loss_collections.append((loss_collection))
 
-        # print("flat_loss_parts", flat_loss_parts)
-        flat_loss_all = torch.cat(flat_loss_parts, dim=0)
-        # print("flat_loss_all", flat_loss_all.shape) # torch.Size([147456])
-        shaped_loss = torch.reshape(flat_loss_all, (batch["image"].shape[0], batch["image"].shape[1], 1))
-        # print("shaped_loss", shaped_loss.shape) # torch.Size([384, 384, 1])
-        colored_loss = colormaps.apply_colormap(shaped_loss, cmap="viridis")
-        # print("colored_loss", colored_loss.shape) # torch.Size([384, 384, 3])
+        combined_loss_collection = LossCollectionUnordered.from_combination(loss_collections)
+        loss_collection_spatial: LossCollectionSpatial = combined_loss_collection.make_into_spatial(
+            image_width=image_width,
+            image_height=image_height)
 
-        group = "Eval Images"
-        writer.put_image(name=group + "/" + "pixelwise rgb loss", image=colored_loss, step=step)
+        print("loss_collection_spatial")
+        loss_collection_spatial.print_components()
+        # 1 dimension at the end is needed for wandb writer
+        loss_collection_spatial.reshape_components((image_height, image_width, 1))
+        loss_collection_spatial.print_components()
+
+        self.log_pixelwise_loss_images_from_loss_collection(loss_collection_spatial, step, log_group_name)
+
+    @torch.no_grad()
+    def log_pixelwise_loss_images_from_loss_collection(self, loss_collection_spatial: LossCollectionSpatial, step: int,
+                                                       log_group_name: str):
+        def log_with_colormap(name, image, cmap="viridis"):
+            # print_tensor("log_with_colormap " + name, image)
+
+            # Handle NaN (for float images) and -1 (for int images) sepecially
+            # they mean that there is no data available for that pixel
+
+            if image.dtype == torch.float32:
+                blank_mask = torch.isnan(image)
+            elif image.dtype == torch.long:
+                blank_mask = (image == -1)
+            else:
+                assert False, original.dtype
+
+            image_without_blanks = torch.clone(image)
+            image_without_blanks[blank_mask] = 0
+            if torch.max(image_without_blanks) > 0:
+                normalized_image = image_without_blanks / torch.max(image_without_blanks)
+            else:
+                normalized_image = image_without_blanks
+            colored_loss = colormaps.apply_colormap(normalized_image, cmap=cmap)
+            blank_color = torch.tensor([0.6, 0.6, 0.6], dtype=colored_loss.dtype)
+
+            blank_mask = blank_mask.reshape(blank_mask.shape[:2])
+            colored_loss[blank_mask] = blank_color
+            # print_tensor("log_with_colormap colored_loss", colored_loss)
+            writer.put_image(name=log_group_name + "/" + name, image=colored_loss, step=step)
+
+        log_with_colormap("pixelwise rgb loss", loss_collection_spatial.pixelwise_rgb_loss)
+
+        log_with_colormap("pixelwise pixel_coordinates x", loss_collection_spatial.pixel_coordinates_x)
+        log_with_colormap("pixelwise pixel_coordinates y", loss_collection_spatial.pixel_coordinates_y)
+
+        log_with_colormap("pixelwise loss_collection_id", loss_collection_spatial.loss_collection_id)
+
+        log_with_colormap("pixelwise depth loss", loss_collection_spatial.pixelwise_depth_loss)
+
+        log_with_colormap("pixelwise normal_l1 loss component", loss_collection_spatial.pixelwise_normal_l1)
+        log_with_colormap("pixelwise normal_cos loss component", loss_collection_spatial.pixelwise_normal_cos)
+        log_with_colormap("pixelwise normal loss", loss_collection_spatial.get_pixelwise_normal_loss())
