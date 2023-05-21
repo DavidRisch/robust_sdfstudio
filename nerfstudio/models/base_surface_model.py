@@ -417,12 +417,6 @@ class SurfaceModel(Model):
         loss_dict = {}
         image = batch["image"].to(self.device)
 
-        if pixelwise:
-            rgb_loss = self.rgb_loss_pixelwise
-        else:
-            rgb_loss = self.rgb_loss
-
-        loss_dict["rgb_loss"] = rgb_loss(image, outputs["rgb"])
         if self.training:
             # eikonal loss
             grad_theta = outputs["eik_grad"]
@@ -434,27 +428,6 @@ class SurfaceModel(Model):
                 weights_sum = outputs["weights"].sum(dim=1).clip(1e-3, 1.0 - 1e-3)
                 loss_dict["fg_mask_loss"] = (
                     F.binary_cross_entropy(weights_sum, fg_label) * self.config.fg_mask_loss_mult
-                )
-
-            # monocular normal loss
-            if "normal" in batch and self.config.mono_normal_loss_mult > 0.0:
-                normal_gt = batch["normal"].to(self.device)
-                normal_pred = outputs["normal"]
-                loss_dict["normal_loss"] = (
-                    monosdf_normal_loss(normal_pred, normal_gt) * self.config.mono_normal_loss_mult
-                )
-
-            # monocular depth loss
-            if "depth" in batch and self.config.mono_depth_loss_mult > 0.0:
-                # TODO check it's true that's we sample from only a single image
-                # TODO only supervised pixel that hit the surface and remove hard-coded scaling for depth
-                depth_gt = batch["depth"].to(self.device)[..., None]
-                depth_pred = outputs["depth"]
-
-                mask = torch.ones_like(depth_gt).reshape(1, 32, -1).bool()
-                loss_dict["depth_loss"] = (
-                    self.depth_loss(depth_pred.reshape(1, 32, -1), (depth_gt * 50 + 0.5).reshape(1, 32, -1), mask)
-                    * self.config.mono_depth_loss_mult
                 )
 
             # sensor depth loss
@@ -493,16 +466,11 @@ class SurfaceModel(Model):
 
         # print_tensor_dict("loss_dict", loss_dict)
 
-        loss_dict_from_loss_collection = {}
         loss_collection: LossCollectionUnordered = self.get_loss_collection(outputs=outputs, batch=batch)
-        # loss_collection.print_components()
-        loss_collection.update_dict_with_scalar_losses(loss_dict=loss_dict_from_loss_collection,
+
+        loss_collection.update_dict_with_scalar_losses(loss_dict=loss_dict,
                                                        normal_loss_mult=self.config.mono_normal_loss_mult,
                                                        depth_loss_mult=self.config.mono_depth_loss_mult)
-        # print_tensor_dict("loss_dict_from_loss_collection", loss_dict_from_loss_collection)
-        for key in ["rgb_loss", "depth_loss", "normal_loss"]:
-            if key in loss_dict:
-                assert torch.all(torch.abs(loss_dict[key] - loss_dict_from_loss_collection[key]) < 0.001)
 
         return loss_dict
 
@@ -644,7 +612,7 @@ class SurfaceModel(Model):
                 outputs=model_outputs, batch=batch_part,
                 pixel_coordinates_x=batch_part["pixel_coordinates_x"],
                 pixel_coordinates_y=batch_part["pixel_coordinates_y"])
-            loss_collection.print_components()
+            # loss_collection.print_components()
 
             loss_collection.to_device_inplace(device="cpu")
             loss_collections.append((loss_collection))
@@ -655,10 +623,10 @@ class SurfaceModel(Model):
             image_height=image_height)
 
         print("loss_collection_spatial")
-        loss_collection_spatial.print_components()
+        # loss_collection_spatial.print_components()
         # 1 dimension at the end is needed for wandb writer
         loss_collection_spatial.reshape_components((image_height, image_width, 1))
-        loss_collection_spatial.print_components()
+        # loss_collection_spatial.print_components()
 
         self.log_pixelwise_loss_images_from_loss_collection(loss_collection_spatial, step, log_group_name)
 
@@ -694,8 +662,8 @@ class SurfaceModel(Model):
 
         log_with_colormap("pixelwise rgb loss", loss_collection_spatial.pixelwise_rgb_loss)
 
-        log_with_colormap("pixelwise pixel_coordinates x", loss_collection_spatial.pixel_coordinates_x)
-        log_with_colormap("pixelwise pixel_coordinates y", loss_collection_spatial.pixel_coordinates_y)
+        # log_with_colormap("pixelwise pixel_coordinates x", loss_collection_spatial.pixel_coordinates_x)
+        # log_with_colormap("pixelwise pixel_coordinates y", loss_collection_spatial.pixel_coordinates_y)
 
         log_with_colormap("pixelwise loss_collection_id", loss_collection_spatial.loss_collection_id)
 
