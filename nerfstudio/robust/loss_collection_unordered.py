@@ -26,26 +26,15 @@ class LossCollectionUnordered(LossCollectionBase):
             loss_collection.loss_collection_id = torch.ones_like(loss_collection.pixelwise_rgb_loss,
                                                                  dtype=torch.long) * index
 
-        combined_loss_collection.pixel_coordinates_x = torch.cat(
-            [loss_collection.pixel_coordinates_x for loss_collection in loss_collections], dim=0)
-        combined_loss_collection.pixel_coordinates_y = torch.cat(
-            [loss_collection.pixel_coordinates_y for loss_collection in loss_collections], dim=0)
+        for attribute_name in combined_loss_collection.tensor_attribute_names:
+            combined_value = torch.cat([
+                getattr(loss_collection, attribute_name)
+                for loss_collection in loss_collections
+            ], dim=0)
+            setattr(combined_loss_collection, attribute_name, combined_value)
 
-        combined_loss_collection.loss_collection_id = torch.cat(
-            [loss_collection.loss_collection_id for loss_collection in loss_collections], dim=0)
-
-        combined_loss_collection.pixelwise_rgb_loss = torch.cat(
-            [loss_collection.pixelwise_rgb_loss for loss_collection in loss_collections], dim=0)
-
-        combined_loss_collection.pixelwise_depth_loss = torch.cat(
-            [loss_collection.pixelwise_depth_loss for loss_collection in loss_collections], dim=0)
         combined_loss_collection.valid_depth_pixel_count = sum(
             [loss_collection.valid_depth_pixel_count for loss_collection in loss_collections])
-
-        combined_loss_collection.pixelwise_normal_l1 = torch.cat(
-            [loss_collection.pixelwise_normal_l1 for loss_collection in loss_collections], dim=0)
-        combined_loss_collection.pixelwise_normal_cos = torch.cat(
-            [loss_collection.pixelwise_normal_cos for loss_collection in loss_collections], dim=0)
 
         return combined_loss_collection
 
@@ -68,24 +57,11 @@ class LossCollectionUnordered(LossCollectionBase):
 
         spatial_loss_collection = LossCollectionSpatial()
 
-        spatial_loss_collection.pixel_coordinates_x = self.make_attribute_spatial(self.pixel_coordinates_x, image_width,
-                                                                                  image_height)
-        spatial_loss_collection.pixel_coordinates_y = self.make_attribute_spatial(self.pixel_coordinates_y, image_width,
-                                                                                  image_height)
-        spatial_loss_collection.loss_collection_id = self.make_attribute_spatial(self.loss_collection_id, image_width,
-                                                                                 image_height)
+        for attribute_name in self.tensor_attribute_names:
+            unordered_value = getattr(self, attribute_name)
+            ordered_value = self.make_attribute_spatial(unordered_value, image_width, image_height)
+            setattr(spatial_loss_collection, attribute_name, ordered_value)
 
-        spatial_loss_collection.pixelwise_rgb_loss = self.make_attribute_spatial(self.pixelwise_rgb_loss, image_width,
-                                                                                 image_height)
-
-        spatial_loss_collection.pixelwise_depth_loss = self.make_attribute_spatial(self.pixelwise_depth_loss,
-                                                                                   image_width,
-                                                                                   image_height)
-
-        spatial_loss_collection.pixelwise_normal_l1 = self.make_attribute_spatial(self.pixelwise_normal_l1, image_width,
-                                                                                  image_height)
-        spatial_loss_collection.pixelwise_normal_cos = self.make_attribute_spatial(self.pixelwise_normal_cos,
-                                                                                   image_width,
-                                                                                   image_height)
+        spatial_loss_collection.valid_depth_pixel_count = self.valid_depth_pixel_count
 
         return spatial_loss_collection

@@ -12,18 +12,29 @@ class LossCollectionBase:
     """
 
     def __init__(self):
+        # names of all tensor attributes, they are all tensors of the same shape so many operations are done on all of them
+        self.tensor_attribute_names = []
+
         self.pixel_coordinates_x: Optional[TensorType[...]] = None
+        self.tensor_attribute_names.append("pixel_coordinates_x")
         self.pixel_coordinates_y: Optional[TensorType[...]] = None
+        self.tensor_attribute_names.append("pixel_coordinates_y")
 
         self.loss_collection_id: Optional[TensorType[...]] = None
+        self.tensor_attribute_names.append("loss_collection_id")
 
         self.pixelwise_rgb_loss: Optional[TensorType[...]] = None
+        self.tensor_attribute_names.append("pixelwise_rgb_loss")
 
         self.pixelwise_depth_loss: Optional[TensorType[...]] = None
-        self.valid_depth_pixel_count: Optional[TensorType[...]] = None
+        self.tensor_attribute_names.append("pixelwise_depth_loss")
+
+        self.valid_depth_pixel_count: Optional[int] = None
 
         self.pixelwise_normal_l1: Optional[TensorType[...]] = None
+        self.tensor_attribute_names.append("pixelwise_normal_l1")
         self.pixelwise_normal_cos: Optional[TensorType[...]] = None
+        self.tensor_attribute_names.append("pixelwise_normal_cos")
 
     def get_pixelwise_normal_loss(self):
         return self.pixelwise_normal_l1 + self.pixelwise_normal_cos
@@ -48,55 +59,22 @@ class LossCollectionBase:
     def reshape_components(self, new_shape: Tuple[int, ...]):
         assert self.pixelwise_rgb_loss is not None
 
-        if self.pixel_coordinates_x is not None:
-            self.pixel_coordinates_x = torch.reshape(self.pixel_coordinates_x, new_shape)
-        if self.pixel_coordinates_y is not None:
-            self.pixel_coordinates_y = torch.reshape(self.pixel_coordinates_y, new_shape)
-
-        if self.loss_collection_id is not None:
-            self.loss_collection_id = torch.reshape(self.loss_collection_id, new_shape)
-
-        if self.pixelwise_rgb_loss is not None:
-            self.pixelwise_rgb_loss = torch.reshape(self.pixelwise_rgb_loss, new_shape)
-
-        if self.pixelwise_depth_loss is not None:
-            self.pixelwise_depth_loss = torch.reshape(self.pixelwise_depth_loss, new_shape)
-
-        if self.pixelwise_normal_l1 is not None:
-            self.pixelwise_normal_l1 = torch.reshape(self.pixelwise_normal_l1, new_shape)
-        if self.pixelwise_normal_cos is not None:
-            self.pixelwise_normal_cos = torch.reshape(self.pixelwise_normal_cos, new_shape)
+        for attribute_name in self.tensor_attribute_names:
+            old_value = getattr(self, attribute_name)
+            if old_value is not None:
+                reshaped_value = torch.reshape(old_value, new_shape)
+                setattr(self, attribute_name, reshaped_value)
 
     def to_device_inplace(self, device):
-        if self.pixel_coordinates_x is not None:
-            self.pixel_coordinates_x = self.pixel_coordinates_x.to(device=device)
-
-        if self.pixel_coordinates_y is not None:
-            self.pixel_coordinates_y = self.pixel_coordinates_y.to(device=device)
-
-        if self.loss_collection_id is not None:
-            self.loss_collection_id = self.loss_collection_id.to(device=device)
-
-        if self.pixelwise_rgb_loss is not None:
-            self.pixelwise_rgb_loss = self.pixelwise_rgb_loss.to(device=device)
-
-        if self.pixelwise_depth_loss is not None:
-            self.pixelwise_depth_loss = self.pixelwise_depth_loss.to(device=device)
-
-        # if self.valid_depth_pixel_count is not None:
-        #     self.valid_depth_pixel_count = self.valid_depth_pixel_count.to(device=device)
-
-        if self.pixelwise_normal_l1 is not None:
-            self.pixelwise_normal_l1 = self.pixelwise_normal_l1.to(device=device)
-
-        if self.pixelwise_normal_cos is not None:
-            self.pixelwise_normal_cos = self.pixelwise_normal_cos.to(device=device)
+        for attribute_name in self.tensor_attribute_names:
+            old_value = getattr(self, attribute_name)
+            if old_value is not None:
+                moved_value = old_value.to(device=device)
+                setattr(self, attribute_name, moved_value)
 
     def print_components(self):
         print("Components of LossCollection:")
-        print_tensor("pixel_coordinates_x", self.pixel_coordinates_x)
-        print_tensor("pixel_coordinates_y", self.pixel_coordinates_y)
-        print_tensor("pixelwise_rgb_loss", self.pixelwise_rgb_loss)
-        print_tensor("pixelwise_depth_loss", self.pixelwise_depth_loss)
-        print_tensor("pixelwise_normal_l1", self.pixelwise_normal_l1)
-        print_tensor("pixelwise_normal_cos", self.pixelwise_normal_cos)
+        for attribute_name in self.tensor_attribute_names:
+            value = getattr(self, attribute_name)
+            print_tensor(attribute_name, value)
+        print(f"valid_depth_pixel_count: {self.valid_depth_pixel_count}")
