@@ -47,7 +47,7 @@ from nerfstudio.data.datamanagers.base_datamanager import (
 )
 from nerfstudio.engine.callbacks import TrainingCallback, TrainingCallbackAttributes
 from nerfstudio.models.base_model import Model, ModelConfig
-from nerfstudio.utils import profiler
+from nerfstudio.utils import profiler, colormaps
 from nerfstudio.utils.images import BasicImages
 
 from nerfstudio.robust.print_utils import print_tensor, print_tensor_dict
@@ -342,6 +342,12 @@ class VanillaPipeline(Pipeline):
         self.model.log_pixelwise_loss(ray_bundle=camera_ray_bundle, batch=batch, step=step,
                                       log_group_name="Train Images", image_width=image_width, image_height=image_height)
 
+        if "rgb_distracted_mask" in batch:
+            rgb_distracted_mask = batch["rgb_distracted_mask"]
+            rgb_distracted_mask = rgb_distracted_mask.reshape(
+                (rgb_distracted_mask.shape[0], rgb_distracted_mask.shape[0], 1))
+            images_dict["rgb_distracted_mask"] = colormaps.apply_boolean_colormap(rgb_distracted_mask)
+
         self.train()
         return metrics_dict, images_dict
 
@@ -351,11 +357,11 @@ class VanillaPipeline(Pipeline):
 
         image_idx, full_ray_bundle, full_batch = self.datamanager.next_train_image(step)
 
-        print_tensor("full_ray_bundle.origins", full_ray_bundle.origins)
+        # print_tensor("full_ray_bundle.origins", full_ray_bundle.origins)
 
         train_ray_bundle, train_batch = self.datamanager.train_from_batch(full_batch)
 
-        print_tensor("train_ray_bundle.origins", train_ray_bundle.origins)
+        # print_tensor("train_ray_bundle.origins", train_ray_bundle.origins)
 
         image_width = full_batch["image"].shape[1]
         image_height = full_batch["image"].shape[0]

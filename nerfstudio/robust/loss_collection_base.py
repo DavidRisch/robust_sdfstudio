@@ -36,6 +36,46 @@ class LossCollectionBase:
         self.pixelwise_normal_cos: Optional[TensorType[...]] = None
         self.tensor_attribute_names.append("pixelwise_normal_cos")
 
+        # Tensors which control which pixels will become part of the final loss
+        # -1: not part of batch
+        # 0: don't include in loss
+        # 1: should be part of loss
+        self.rgb_mask: Optional[TensorType[...]] = None
+        self.tensor_attribute_names.append("rgb_mask")
+        self.depth_mask: Optional[TensorType[...]] = None
+        self.tensor_attribute_names.append("depth_mask")
+        self.normal_mask: Optional[TensorType[...]] = None
+        self.tensor_attribute_names.append("normal_mask")
+
+        self.masks_are_applied = False
+
+    def set_full_masks(self):
+        assert self.pixelwise_rgb_loss is not None
+        mask_shape = self.pixelwise_rgb_loss.shape
+        self.rgb_mask = torch.full(mask_shape, fill_value=1, dtype=torch.long)
+        self.depth_mask = torch.full(mask_shape, fill_value=1, dtype=torch.long)
+        self.normal_mask = torch.full(mask_shape, fill_value=1, dtype=torch.long)
+        # print_tensor("after set_full_masks depth_mask", self.depth_mask)
+
+    def apply_masks(self):
+        assert not self.masks_are_applied
+
+        loss_attribute_names_by_mask_names = {
+            "rgb_mask": ["pixelwise_rgb_loss"],
+            "depth_mask": ["pixelwise_depth_loss"],
+            "normal_mask": ["pixelwise_normal_l1", "pixelwise_normal_cos"],
+        }
+
+        for mask_attribute_name, loss_attribute_names in loss_attribute_names_by_mask_names.items():
+            mask = getattr(self, mask_attribute_name)
+            for loss_attribute_name in loss_attribute_names:
+                value = getattr(self, loss_attribute_name)
+                if value is not None:
+                    value[mask == 0] = 0
+                    setattr(self, loss_attribute_name, value)
+
+        self.masks_are_applied = True
+
     def get_pixelwise_normal_loss(self):
         return self.pixelwise_normal_l1 + self.pixelwise_normal_cos
 
@@ -76,5 +116,5 @@ class LossCollectionBase:
         print("Components of LossCollection:")
         for attribute_name in self.tensor_attribute_names:
             value = getattr(self, attribute_name)
-            print_tensor(attribute_name, value)
+            print_tensor(attribute_name, value, prefix="  - ")
         print(f"valid_depth_pixel_count: {self.valid_depth_pixel_count}")

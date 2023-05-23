@@ -129,6 +129,10 @@ class SurfaceModelConfig(ModelConfig):
     scene_contraction_norm: Literal["inf", "l2"] = "inf"
     """Which norm to use for the scene contraction."""
 
+    use_rgb_distracted_mask_for_rgb_loss_mask: bool = False
+    use_rgb_distracted_mask_for_normal_loss_mask: bool = False
+    use_rgb_distracted_mask_for_depth_loss_mask: bool = False
+
 
 class SurfaceModel(Model):
     """Base surface model
@@ -387,6 +391,21 @@ class SurfaceModel(Model):
         pixelwise_rgb_loss_with_channels = self.rgb_loss_pixelwise(rgb_image_gt, rgb_image_prediction)
         loss_collection.pixelwise_rgb_loss = torch.mean(pixelwise_rgb_loss_with_channels, dim=1)
 
+        loss_collection.set_full_masks()  # do this early so it can be safely be overwritten later
+
+        if "rgb_distracted_mask" in batch:
+            assert len(batch["rgb_distracted_mask"].shape) == 1
+            rgb_distracted_mask = batch["rgb_distracted_mask"]
+
+            # print_tensor("apply rgb_distracted_mask before", loss_collection.rgb_mask)
+            if self.config.use_rgb_distracted_mask_for_rgb_loss_mask:
+                loss_collection.rgb_mask[rgb_distracted_mask] = 0
+                # print_tensor("apply rgb_distracted_mask after", loss_collection.rgb_mask)
+            if self.config.use_rgb_distracted_mask_for_normal_loss_mask:
+                loss_collection.depth_mask[rgb_distracted_mask] = 0
+            if self.config.use_rgb_distracted_mask_for_depth_loss_mask:
+                loss_collection.normal_mask[rgb_distracted_mask] = 0
+
         if "normal" in batch and self.config.mono_normal_loss_mult > 0.0:
             normal_image_gt = batch["normal"].to(self.device)
             normal_image_pred = outputs["normal"]
@@ -467,6 +486,8 @@ class SurfaceModel(Model):
         # print_tensor_dict("loss_dict", loss_dict)
 
         loss_collection: LossCollectionUnordered = self.get_loss_collection(outputs=outputs, batch=batch)
+
+        loss_collection.apply_masks()
 
         loss_collection.update_dict_with_scalar_losses(loss_dict=loss_dict,
                                                        normal_loss_mult=self.config.mono_normal_loss_mult,
@@ -575,6 +596,9 @@ class SurfaceModel(Model):
         if "normal" in batch:
             relevant_key_of_batch.append("normal")
 
+        if "rgb_distracted_mask" in batch:
+            relevant_key_of_batch.append("rgb_distracted_mask")
+
         # flatten image dimensions (height, width) for easier spliting later
         ray_bundle_flattened = ray_bundle.flatten()
         if len(batch["image"].shape) == 3:
@@ -622,17 +646,21 @@ class SurfaceModel(Model):
             image_width=image_width,
             image_height=image_height)
 
-        print("loss_collection_spatial")
+        # print("loss_collection_spatial")
         # loss_collection_spatial.print_components()
         # 1 dimension at the end is needed for wandb writer
         loss_collection_spatial.reshape_components((image_height, image_width, 1))
         # loss_collection_spatial.print_components()
 
-        self.log_pixelwise_loss_images_from_loss_collection(loss_collection_spatial, step, log_group_name)
+        self.log_pixelwise_loss_images_from_loss_collection(loss_collection_spatial, step, log_group_name,
+                                                            log_masks=True, loss_collection_ids=True)
+        loss_collection_spatial.apply_masks()
+        self.log_pixelwise_loss_images_from_loss_collection(loss_collection_spatial, step, log_group_name,
+                                                            log_masks=False, loss_collection_ids=False)
 
     @torch.no_grad()
     def log_pixelwise_loss_images_from_loss_collection(self, loss_collection_spatial: LossCollectionSpatial, step: int,
-                                                       log_group_name: str):
+                                                       log_group_name: str, log_masks: bool, loss_collection_ids: bool):
         def log_with_colormap(name, image, cmap="viridis"):
             # print_tensor("log_with_colormap " + name, image)
 
@@ -650,13 +678,19 @@ class SurfaceModel(Model):
             # print_tensor(f"log_with_colormap {log_group_name}/{name} blank_mask", blank_mask)
             image_without_blanks = torch.clone(image)
             image_without_blanks[blank_mask] = 0
-            # print_tensor(f"log_with_colormap {log_group_name}/{name} image_without_blanks", image_without_blanks)
-            if torch.max(image_without_blanks) > 0:
-                normalized_image = image_without_blanks / torch.max(image_without_blanks)
+
+            if cmap == "black_and_white":
+                # print_tensor("before bool colormap image", image)
+                # print_tensor("before bool colormap image_without_blanks", image_without_blanks)
+                colored_loss = colormaps.apply_boolean_colormap(image_without_blanks == 1)
+                # print_tensor("after bool colormap colored_loss", colored_loss)
             else:
-                normalized_image = image_without_blanks
-            # print_tensor(f"log_with_colormap {log_group_name}/{name} normalized_image", normalized_image)
-            colored_loss = colormaps.apply_colormap(normalized_image, cmap=cmap)
+                if torch.max(image_without_blanks) > 0:
+                    normalized_image = image_without_blanks / torch.max(image_without_blanks)
+                else:
+                    normalized_image = image_without_blanks
+
+                colored_loss = colormaps.apply_colormap(normalized_image, cmap=cmap)
             blank_color = torch.tensor([0.6, 0.6, 0.6], dtype=colored_loss.dtype)
 
             blank_mask = blank_mask.reshape(blank_mask.shape[:2])
@@ -664,15 +698,25 @@ class SurfaceModel(Model):
             # print_tensor(f"log_with_colormap {log_group_name}/{name} colored_loss", colored_loss)
             writer.put_image(name=log_group_name + "/" + name, image=colored_loss, step=step)
 
-        log_with_colormap("pixelwise rgb loss", loss_collection_spatial.pixelwise_rgb_loss)
+        masks_text = " (after mask)" if loss_collection_spatial.masks_are_applied else " (before mask)"
+
+        log_with_colormap("pixelwise rgb loss" + masks_text, loss_collection_spatial.pixelwise_rgb_loss)
+        if log_masks:
+            log_with_colormap("mask for rgb loss", loss_collection_spatial.rgb_mask, cmap="black_and_white")
 
         # log_with_colormap("pixelwise pixel_coordinates x", loss_collection_spatial.pixel_coordinates_x)
         # log_with_colormap("pixelwise pixel_coordinates y", loss_collection_spatial.pixel_coordinates_y)
+        if loss_collection_ids:
+            log_with_colormap("pixelwise loss_collection_id", loss_collection_spatial.loss_collection_id)
 
-        log_with_colormap("pixelwise loss_collection_id", loss_collection_spatial.loss_collection_id)
+        log_with_colormap("pixelwise depth loss" + masks_text, loss_collection_spatial.pixelwise_depth_loss)
+        if log_masks:
+            log_with_colormap("mask for depth loss", loss_collection_spatial.depth_mask, cmap="black_and_white")
 
-        log_with_colormap("pixelwise depth loss", loss_collection_spatial.pixelwise_depth_loss)
-
-        log_with_colormap("pixelwise normal_l1 loss component", loss_collection_spatial.pixelwise_normal_l1)
-        log_with_colormap("pixelwise normal_cos loss component", loss_collection_spatial.pixelwise_normal_cos)
-        log_with_colormap("pixelwise normal loss", loss_collection_spatial.get_pixelwise_normal_loss())
+        log_with_colormap("pixelwise normal_l1 loss component" + masks_text,
+                          loss_collection_spatial.pixelwise_normal_l1)
+        log_with_colormap("pixelwise normal_cos loss component" + masks_text,
+                          loss_collection_spatial.pixelwise_normal_cos)
+        log_with_colormap("pixelwise normal loss" + masks_text, loss_collection_spatial.get_pixelwise_normal_loss())
+        if log_masks:
+            log_with_colormap("mask for normal loss", loss_collection_spatial.normal_mask, cmap="black_and_white")

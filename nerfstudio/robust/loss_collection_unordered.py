@@ -49,7 +49,6 @@ class LossCollectionUnordered(LossCollectionBase):
         spatial = torch.full((image_height, image_width), fill_value=fill_value, dtype=original.dtype, device="cpu")
         # print_tensor("make_attribute_spatial spatial", spatial)
         spatial[self.pixel_coordinates_y, self.pixel_coordinates_x] = original
-        # print_tensor("make_attribute_spatial spatial", spatial)
         return spatial
 
     def make_into_spatial(self, image_width: int, image_height: int) -> LossCollectionSpatial:
