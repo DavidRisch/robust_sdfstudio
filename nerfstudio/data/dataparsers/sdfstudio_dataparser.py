@@ -24,6 +24,8 @@ import torch
 from PIL import Image
 from rich.console import Console
 from torchtyping import TensorType
+from typing import List
+import cv2
 
 from nerfstudio.cameras import camera_utils
 from nerfstudio.cameras.cameras import Cameras, CameraType
@@ -133,6 +135,12 @@ def get_sparse_sfm_points(image_idx: int, sfm_points):
     return {"sparse_sfm_points": sparse_sfm_points}
 
 
+def get_rgb_distracted_masks(image_idx: int, rgb_distracted_masks: List[np.ndarray]):
+    rgb_distracted_mask = rgb_distracted_masks[image_idx]
+
+    return {"rgb_distracted_mask": rgb_distracted_mask}
+
+
 @dataclass
 class SDFStudioDataParserConfig(DataParserConfig):
     """Scene dataset parser config"""
@@ -198,6 +206,7 @@ class SDFStudio(DataParser):
         sensor_depth_images = []
         foreground_mask_images = []
         sfm_points = []
+        rgb_distracted_masks = []
         fx = []
         fy = []
         cx = []
@@ -275,6 +284,17 @@ class SDFStudio(DataParser):
                 # load sparse sfm points
                 sfm_points_view = np.loadtxt(self.config.data / frame["sfm_sparse_points_view"])
                 sfm_points.append(torch.from_numpy(sfm_points_view).float())
+
+            distracted_mask_path = self.config.data / (
+                frame["rgb_path"].replace("_rgb.png", "_rgb_distracted_mask.png"))
+            if distracted_mask_path.is_file():
+                # print("distracted_mask_path: ", distracted_mask_path)
+                mask = cv2.imread(str(distracted_mask_path))
+                # print("mask", mask.shape, rgb_distracted_masks)
+                mask = (mask[:, :, 0] != 0)
+                # print("mask", mask.shape, rgb_distracted_masks)
+                mask = torch.from_numpy(mask)
+                rgb_distracted_masks.append(mask)
 
         fx = torch.stack(fx)
         fy = torch.stack(fy)
@@ -377,6 +397,13 @@ class SDFStudio(DataParser):
                     "neighbors_num": self.config.neighbors_num,
                     "neighbors_shuffle": self.config.neighbors_shuffle,
                 },
+            }
+
+        if len(rgb_distracted_masks) > 0:
+            print(f"loaded {len(rgb_distracted_masks)} rgb_distracted_masks")
+            additional_inputs_dict["rgb_distracted_masks"] = {
+                "func": get_rgb_distracted_masks,
+                "kwargs": {"rgb_distracted_masks": rgb_distracted_masks},
             }
 
         dataparser_outputs = DataparserOutputs(
