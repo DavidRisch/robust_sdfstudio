@@ -59,8 +59,10 @@ class LossCollectionUnordered(LossCollectionBase):
 
         for attribute_name in self.tensor_attribute_names:
             unordered_value = getattr(self, attribute_name)
-            ordered_value = self.make_attribute_spatial(unordered_value, image_width, image_height)
-            setattr(spatial_loss_collection, attribute_name, ordered_value)
+            # print_tensor(f"make_into_spatial {attribute_name} unordered_value", unordered_value)
+            spatial_value = self.make_attribute_spatial(unordered_value, image_width, image_height)
+            # print_tensor(f"make_into_spatial {attribute_name} ordered_value", spatial_value)
+            setattr(spatial_loss_collection, attribute_name, spatial_value)
 
         spatial_loss_collection.valid_depth_pixel_count = self.valid_depth_pixel_count
 

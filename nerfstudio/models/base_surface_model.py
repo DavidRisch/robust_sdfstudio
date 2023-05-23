@@ -646,18 +646,22 @@ class SurfaceModel(Model):
             else:
                 assert False, original.dtype
 
+            # print_tensor(f"log_with_colormap {log_group_name}/{name} image", image)
+            # print_tensor(f"log_with_colormap {log_group_name}/{name} blank_mask", blank_mask)
             image_without_blanks = torch.clone(image)
             image_without_blanks[blank_mask] = 0
+            # print_tensor(f"log_with_colormap {log_group_name}/{name} image_without_blanks", image_without_blanks)
             if torch.max(image_without_blanks) > 0:
                 normalized_image = image_without_blanks / torch.max(image_without_blanks)
             else:
                 normalized_image = image_without_blanks
+            # print_tensor(f"log_with_colormap {log_group_name}/{name} normalized_image", normalized_image)
             colored_loss = colormaps.apply_colormap(normalized_image, cmap=cmap)
             blank_color = torch.tensor([0.6, 0.6, 0.6], dtype=colored_loss.dtype)
 
             blank_mask = blank_mask.reshape(blank_mask.shape[:2])
             colored_loss[blank_mask] = blank_color
-            # print_tensor("log_with_colormap colored_loss", colored_loss)
+            # print_tensor(f"log_with_colormap {log_group_name}/{name} colored_loss", colored_loss)
             writer.put_image(name=log_group_name + "/" + name, image=colored_loss, step=step)
 
         log_with_colormap("pixelwise rgb loss", loss_collection_spatial.pixelwise_rgb_loss)

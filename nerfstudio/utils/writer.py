@@ -28,10 +28,13 @@ import wandb
 from rich.console import Console
 from torch.utils.tensorboard import SummaryWriter
 from torchtyping import TensorType
+from PIL import Image as PILImage
+import numpy as np
 
 from nerfstudio.configs import base_config as cfg
 from nerfstudio.utils.decorators import check_main_thread, decorate_all
 from nerfstudio.utils.printing import human_format
+from nerfstudio.robust.print_utils import print_tensor_dict, print_tensor
 
 CONSOLE = Console(width=120)
 to8b = lambda x: (255 * torch.clamp(x, min=0, max=1)).to(torch.uint8)
@@ -288,8 +291,14 @@ class WandbWriter(Writer):
         wandb.init(project="sdfstudio", name=experiment_name, dir=str(log_dir), reinit=True)
 
     def write_image(self, name: str, image: TensorType["H", "W", "C"], step: int) -> None:
-        image = torch.permute(image, (2, 0, 1))
-        wandb.log({name: wandb.Image(image)}, step=step)
+
+        # Need to create PIL image manually so that wandb does not normalize the image
+        image = image.numpy()
+        image = image * 255
+        image = image.astype(np.uint8)
+        pil_image = PILImage.fromarray(image)
+
+        wandb.log({name: wandb.Image(pil_image)}, step=step)
 
     def write_scalar(self, name: str, scalar: Union[float, torch.Tensor], step: int) -> None:
         wandb.log({name: scalar}, step=step)
