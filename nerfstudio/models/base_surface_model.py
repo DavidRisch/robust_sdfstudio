@@ -72,6 +72,7 @@ from nerfstudio.robust.loss_collection_unordered import LossCollectionUnordered
 from nerfstudio.robust.loss_collection_spatial import LossCollectionSpatial
 from nerfstudio.robust.print_utils import print_tensor_dict, print_tensor
 from nerfstudio.robust.robust_loss import RobustLoss
+from nerfstudio.robust.log_utils import LogUtils
 
 
 @dataclass
@@ -662,62 +663,36 @@ class SurfaceModel(Model):
     @torch.no_grad()
     def log_pixelwise_loss_images_from_loss_collection(self, loss_collection_spatial: LossCollectionSpatial, step: int,
                                                        log_group_name: str, log_masks: bool, loss_collection_ids: bool):
-        def log_with_colormap(name, image, cmap="viridis"):
-            # print_tensor("log_with_colormap " + name, image)
-
-            # Handle NaN (for float images) and -1 (for int images) sepecially
-            # they mean that there is no data available for that pixel
-
-            if image.dtype == torch.float32:
-                blank_mask = torch.isnan(image)
-            elif image.dtype == torch.long:
-                blank_mask = (image == -1)
-            else:
-                assert False, original.dtype
-
-            # print_tensor(f"log_with_colormap {log_group_name}/{name} image", image)
-            # print_tensor(f"log_with_colormap {log_group_name}/{name} blank_mask", blank_mask)
-            image_without_blanks = torch.clone(image)
-            image_without_blanks[blank_mask] = 0
-
-            if cmap == "black_and_white":
-                # print_tensor("before bool colormap image", image)
-                # print_tensor("before bool colormap image_without_blanks", image_without_blanks)
-                colored_loss = colormaps.apply_boolean_colormap(image_without_blanks == 1)
-                # print_tensor("after bool colormap colored_loss", colored_loss)
-            else:
-                if torch.max(image_without_blanks) > 0:
-                    normalized_image = image_without_blanks / torch.max(image_without_blanks)
-                else:
-                    normalized_image = image_without_blanks
-
-                colored_loss = colormaps.apply_colormap(normalized_image, cmap=cmap)
-            blank_color = torch.tensor([0.6, 0.6, 0.6], dtype=colored_loss.dtype)
-
-            blank_mask = blank_mask.reshape(blank_mask.shape[:2])
-            colored_loss[blank_mask] = blank_color
-            # print_tensor(f"log_with_colormap {log_group_name}/{name} colored_loss", colored_loss)
-            writer.put_image(name=log_group_name + "/" + name, image=colored_loss, step=step)
 
         masks_text = " (after mask)" if loss_collection_spatial.masks_are_applied else " (before mask)"
 
-        log_with_colormap("pixelwise rgb loss" + masks_text, loss_collection_spatial.pixelwise_rgb_loss)
+        LogUtils.log_image_with_colormap(step, log_group_name, "pixelwise rgb loss" + masks_text,
+                                         loss_collection_spatial.pixelwise_rgb_loss)
         if log_masks:
-            log_with_colormap("mask for rgb loss", loss_collection_spatial.rgb_mask, cmap="black_and_white")
+            LogUtils.log_image_with_colormap(step, log_group_name, "mask for rgb loss",
+                                             loss_collection_spatial.rgb_mask,
+                                             cmap="black_and_white")
 
-        # log_with_colormap("pixelwise pixel_coordinates x", loss_collection_spatial.pixel_coordinates_x)
-        # log_with_colormap("pixelwise pixel_coordinates y", loss_collection_spatial.pixel_coordinates_y)
+        # LogUtils.log_image_with_colormap(step,log_group_name,"pixelwise pixel_coordinates x", loss_collection_spatial.pixel_coordinates_x)
+        # LogUtils.log_image_with_colormap(step,log_group_name,"pixelwise pixel_coordinates y", loss_collection_spatial.pixel_coordinates_y)
         if loss_collection_ids:
-            log_with_colormap("pixelwise loss_collection_id", loss_collection_spatial.loss_collection_id)
+            LogUtils.log_image_with_colormap(step, log_group_name, "pixelwise loss_collection_id",
+                                             loss_collection_spatial.loss_collection_id)
 
-        log_with_colormap("pixelwise depth loss" + masks_text, loss_collection_spatial.pixelwise_depth_loss)
+        LogUtils.log_image_with_colormap(step, log_group_name, "pixelwise depth loss" + masks_text,
+                                         loss_collection_spatial.pixelwise_depth_loss)
         if log_masks:
-            log_with_colormap("mask for depth loss", loss_collection_spatial.depth_mask, cmap="black_and_white")
+            LogUtils.log_image_with_colormap(step, log_group_name, "mask for depth loss",
+                                             loss_collection_spatial.depth_mask,
+                                             cmap="black_and_white")
 
-        log_with_colormap("pixelwise normal_l1 loss component" + masks_text,
-                          loss_collection_spatial.pixelwise_normal_l1)
-        log_with_colormap("pixelwise normal_cos loss component" + masks_text,
-                          loss_collection_spatial.pixelwise_normal_cos)
-        log_with_colormap("pixelwise normal loss" + masks_text, loss_collection_spatial.get_pixelwise_normal_loss())
+        LogUtils.log_image_with_colormap(step, log_group_name, "pixelwise normal_l1 loss component" + masks_text,
+                                         loss_collection_spatial.pixelwise_normal_l1)
+        LogUtils.log_image_with_colormap(step, log_group_name, "pixelwise normal_cos loss component" + masks_text,
+                                         loss_collection_spatial.pixelwise_normal_cos)
+        LogUtils.log_image_with_colormap(step, log_group_name, "pixelwise normal loss" + masks_text,
+                                         loss_collection_spatial.get_pixelwise_normal_loss())
         if log_masks:
-            log_with_colormap("mask for normal loss", loss_collection_spatial.normal_mask, cmap="black_and_white")
+            LogUtils.log_image_with_colormap(step, log_group_name, "mask for normal loss",
+                                             loss_collection_spatial.normal_mask,
+                                             cmap="black_and_white")
