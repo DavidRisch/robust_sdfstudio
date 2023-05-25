@@ -65,6 +65,7 @@ from nerfstudio.utils.images import BasicImages
 from nerfstudio.utils.misc import IterableWrapper
 
 from nerfstudio.robust.print_utils import print_tensor, print_tensor_dict
+from nerfstudio.robust.pixel_sampler_large_patch import PixelSamplerLargePatch
 
 CONSOLE = Console(width=120)
 
@@ -290,6 +291,9 @@ class VanillaDataManagerConfig(InstantiateConfig):
     along with relevant information about camera intrinsics
     """
 
+    sample_large_image_patches: bool = False
+    """Use PixelSamplerLargePatch to generate training batches"""
+
 
 class VanillaDataManager(DataManager):  # pylint: disable=abstract-method
     """Basic stored data manager implementation.
@@ -348,6 +352,10 @@ class VanillaDataManager(DataManager):  # pylint: disable=abstract-method
         self, dataset: InputDataset, *args: Any, **kwargs: Any
     ) -> PixelSampler:
         """Infer pixel sampler to use."""
+
+        if self.config.sample_large_image_patches:
+            return PixelSamplerLargePatch(*args, **kwargs)
+
         # If all images are equirectangular, use equirectangular pixel sampler
         is_equirectangular = dataset.cameras.camera_type == CameraType.EQUIRECTANGULAR.value
         if is_equirectangular.all():
