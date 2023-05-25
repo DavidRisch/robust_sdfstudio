@@ -178,6 +178,9 @@ class SDFStudioDataParserConfig(DataParserConfig):
     """remove selected / sampled validation images from training set"""
     auto_orient: bool = False
 
+    max_train_image_count: int = -1
+    """maximum number of images to use from the training split. -1 to use all."""
+
 
 @dataclass
 class SDFStudio(DataParser):
@@ -214,7 +217,13 @@ class SDFStudio(DataParser):
         cx = []
         cy = []
         camera_to_worlds = []
-        for i, frame in enumerate(meta["frames"]):
+
+        frames = meta["frames"]
+        if split == "train" and self.config.max_train_image_count != -1:
+            print(f"Only using {self.config.max_train_image_count} images from the train split.")
+            frames = frames[:self.config.max_train_image_count]
+
+        for i, frame in enumerate(frames):
             if i not in indices:
                 continue
 
