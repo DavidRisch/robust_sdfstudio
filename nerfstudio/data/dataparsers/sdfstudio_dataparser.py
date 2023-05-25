@@ -38,6 +38,8 @@ from nerfstudio.data.scene_box import SceneBox
 from nerfstudio.utils.images import BasicImages
 from nerfstudio.utils.io import load_from_json
 
+from nerfstudio.robust.print_utils import print_tensor_dict, print_tensor
+
 CONSOLE = Console()
 
 
@@ -234,7 +236,10 @@ class SDFStudio(DataParser):
                 # load mono depth
                 depth = np.load(self.config.data / frame["mono_depth_path"])
                 assert len(depth.shape) == 2 and depth.shape[0] > 99 and depth.shape[1] > 99
-                assert np.min(depth) >= 0
+
+                # Due to the weird convention of the depth (real_depth_gt = depth_image_gt * 50 + 0.5) depths can be smaller than 0 here
+                assert np.min(depth) >= 0.5
+
                 depth_images.append(torch.from_numpy(depth).float())
 
                 # load mono normal
