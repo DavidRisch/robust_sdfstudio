@@ -238,7 +238,7 @@ class SDFStudio(DataParser):
                 assert len(depth.shape) == 2 and depth.shape[0] > 99 and depth.shape[1] > 99
 
                 # Due to the weird convention of the depth (real_depth_gt = depth_image_gt * 50 + 0.5) depths can be smaller than 0 here
-                assert np.min(depth) >= 0.5
+                assert np.min(depth) >= -0.5
 
                 depth_images.append(torch.from_numpy(depth).float())
 
