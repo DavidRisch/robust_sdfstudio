@@ -21,7 +21,7 @@ from __future__ import annotations
 import copy
 from abc import abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Type
+from typing import Dict, List, Tuple, Type, Optional
 
 import torch
 import torch.nn.functional as F
@@ -71,6 +71,7 @@ from nerfstudio.utils import writer
 from nerfstudio.robust.loss_collection_unordered import LossCollectionUnordered
 from nerfstudio.robust.loss_collection_spatial import LossCollectionSpatial
 from nerfstudio.robust.print_utils import print_tensor_dict, print_tensor
+from nerfstudio.robust.robust_loss import RobustLoss
 
 
 @dataclass
@@ -132,6 +133,14 @@ class SurfaceModelConfig(ModelConfig):
     use_rgb_distracted_mask_for_rgb_loss_mask: bool = False
     use_rgb_distracted_mask_for_normal_loss_mask: bool = False
     use_rgb_distracted_mask_for_depth_loss_mask: bool = False
+
+    # 0 to 100:
+    rgb_mask_from_percentile_of_rgb_loss: float = -1.0
+    """aaa"""
+    normal_mask_from_percentile_of_normal_loss: float = -1.0
+    """aaa"""
+    depth_mask_from_percentile_of_depth_loss: float = -1.0
+    """aaa"""
 
 
 class SurfaceModel(Model):
@@ -381,7 +390,7 @@ class SurfaceModel(Model):
         return outputs
 
     def get_loss_collection(self, outputs: Dict, batch: Dict, pixel_coordinates_x: TensorType[...] = None,
-                            pixel_coordinates_y: TensorType[...] = None):
+                            pixel_coordinates_y: TensorType[...] = None) -> LossCollectionUnordered:
         loss_collection = LossCollectionUnordered()
         loss_collection.pixel_coordinates_x = pixel_coordinates_x
         loss_collection.pixel_coordinates_y = pixel_coordinates_y
@@ -393,18 +402,8 @@ class SurfaceModel(Model):
 
         loss_collection.set_full_masks()  # do this early so it can be safely be overwritten later
 
-        if "rgb_distracted_mask" in batch:
-            assert len(batch["rgb_distracted_mask"].shape) == 1
-            rgb_distracted_mask = batch["rgb_distracted_mask"]
-
-            # print_tensor("apply rgb_distracted_mask before", loss_collection.rgb_mask)
-            if self.config.use_rgb_distracted_mask_for_rgb_loss_mask:
-                loss_collection.rgb_mask[rgb_distracted_mask] = 0
-                # print_tensor("apply rgb_distracted_mask after", loss_collection.rgb_mask)
-            if self.config.use_rgb_distracted_mask_for_normal_loss_mask:
-                loss_collection.depth_mask[rgb_distracted_mask] = 0
-            if self.config.use_rgb_distracted_mask_for_depth_loss_mask:
-                loss_collection.normal_mask[rgb_distracted_mask] = 0
+        RobustLoss.maybe_get_loss_masks_from_distractor_mask(loss_collection=loss_collection, batch=batch,
+                                                             config=self.config)
 
         if "normal" in batch and self.config.mono_normal_loss_mult > 0.0:
             normal_image_gt = batch["normal"].to(self.device)
@@ -429,6 +428,8 @@ class SurfaceModel(Model):
                                                              depth_image_gt_reshaped_scaled_and_shifted,
                                                              mask)
             loss_collection.pixelwise_depth_loss = pixelwise_depth_loss.flatten()
+
+        RobustLoss.maybe_create_loss_masks_from_losses(loss_collection=loss_collection, config=self.config)
 
         return loss_collection
 
