@@ -639,12 +639,27 @@ class SurfaceModel(Model):
 
         loss_collections: List[LossCollectionUnordered] = []
 
+        # interlaced columns
+        # def extract_part(original:Tensor, part_index:int) -> Tensor:
+        #     return original[part_index::part_count, ...]
+
+        # large rows
+        def extract_part(original: Tensor, part_index: int) -> Tensor:
+            return original[part_index * part_size: (part_index + 1) * part_size, ...]
+
+        def extract_part(original: Tensor, part_index: int) -> Tensor:
+            index_x = part_index % 2
+            index_y = part_index // 2
+
+            return original[part_index * part_size: (part_index + 1) * part_size, ...]
+
         for part_index in range(part_count):
-            ray_bundle_part = ray_bundle_flattened[part_index::part_count, ...]
+            ray_bundle_part = extract_part(ray_bundle_flattened, part_index)
             batch_part = {
-                key: batch_flattened[key][part_index::part_count, ...]
+                key: extract_part(batch_flattened[key], part_index)
                 for key in relevant_key_of_batch
             }
+            print_tensor("batch_part", batch_part["image"])
 
             model_outputs = self(ray_bundle_part)
 
