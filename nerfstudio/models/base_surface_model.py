@@ -391,7 +391,8 @@ class SurfaceModel(Model):
         return outputs
 
     def get_loss_collection(self, outputs: Dict, batch: Dict, pixel_coordinates_x: TensorType[...] = None,
-                            pixel_coordinates_y: TensorType[...] = None) -> LossCollectionUnordered:
+                            pixel_coordinates_y: TensorType[...] = None) -> Union[
+        LossCollectionUnordered, LossCollectionDenseSpatial]:
         loss_collection = LossCollectionUnordered()
         loss_collection.pixel_coordinates_x = pixel_coordinates_x
         loss_collection.pixel_coordinates_y = pixel_coordinates_y
@@ -401,7 +402,7 @@ class SurfaceModel(Model):
         pixelwise_rgb_loss_with_channels = self.rgb_loss_pixelwise(rgb_image_gt, rgb_image_prediction)
         loss_collection.pixelwise_rgb_loss = torch.mean(pixelwise_rgb_loss_with_channels, dim=1)
 
-        loss_collection.set_full_masks()  # do this early so it can be safely be overwritten later
+        loss_collection.set_full_masks(device=self.device)  # do this early so it can be safely be overwritten later
 
         RobustLoss.maybe_get_loss_masks_from_distractor_mask(loss_collection=loss_collection, batch=batch,
                                                              config=self.config)
@@ -429,6 +430,12 @@ class SurfaceModel(Model):
                                                              depth_image_gt_reshaped_scaled_and_shifted,
                                                              mask)
             loss_collection.pixelwise_depth_loss = pixelwise_depth_loss.flatten()
+
+        if "image_is_a_single_image_path" in batch and batch["image_is_a_single_image_path"] is True:
+            print("Training with LossCollectionDenseSpatial")
+
+            loss_collection: LossCollectionDenseSpatial = loss_collection.make_into_dense_spatial(
+                device=self.device)
 
         RobustLoss.maybe_create_loss_masks_from_losses(loss_collection=loss_collection, config=self.config)
 
@@ -487,7 +494,14 @@ class SurfaceModel(Model):
 
         # print_tensor_dict("loss_dict", loss_dict)
 
-        loss_collection: LossCollectionUnordered = self.get_loss_collection(outputs=outputs, batch=batch)
+        pixel_coordinates_y, pixel_coordinates_x = None, None
+        if "indices" in batch:
+            pixel_coordinates_y, pixel_coordinates_x = batch["indices"][:, 1].to(self.device), batch["indices"][:,
+                                                                                               2].to(self.device)
+
+        loss_collection: Union[LossCollectionUnordered, LossCollectionDenseSpatial] = \
+            self.get_loss_collection(outputs=outputs, batch=batch, pixel_coordinates_x=pixel_coordinates_x,
+                                     pixel_coordinates_y=pixel_coordinates_y)
 
         loss_collection.apply_masks()
 
@@ -645,14 +659,16 @@ class SurfaceModel(Model):
 
         combined_loss_collection = LossCollectionUnordered.from_combination(loss_collections)
 
-        loss_collection_dense_spatial: LossCollectionDenseSpatial = combined_loss_collection.make_into_dense_spatial()
+        loss_collection_dense_spatial: LossCollectionDenseSpatial = combined_loss_collection.make_into_dense_spatial(
+            device=torch.device("cpu"))
 
         LogUtils.log_image_with_colormap(step, log_group_name, "dense pixelwise rgb loss",
                                          loss_collection_dense_spatial.pixelwise_rgb_loss)
 
         loss_collection_sparse_spatial: LossCollectionSparseSpatial = loss_collection_dense_spatial.make_into_sparse_spatial(
             image_width=image_width,
-            image_height=image_height)
+            image_height=image_height,
+            device=torch.device("cpu"))
 
         # print("loss_collection_sparse_spatial")
         # loss_collection_sparse_spatial.print_components()

@@ -43,7 +43,7 @@ class LossCollectionUnordered(LossCollectionBase):
     def _make_attribute_spatial(self, original: TensorType[...],
                                 image_width: int, image_height: int,
                                 offset_x: int, offset_y: int,
-                                allow_sparse: bool):
+                                allow_sparse: bool, device: torch.device):
         # print_tensor("make_attribute_spatial original", original)
         if original.dtype == torch.float32:
             fill_value = torch.nan
@@ -51,7 +51,7 @@ class LossCollectionUnordered(LossCollectionBase):
             fill_value = -1
         else:
             assert False, original.dtype
-        spatial = torch.full((image_height, image_width), fill_value=fill_value, dtype=original.dtype, device="cpu")
+        spatial = torch.full((image_height, image_width), fill_value=fill_value, dtype=original.dtype, device=device)
         # print_tensor("make_attribute_spatial spatial", spatial)
         spatial[self.pixel_coordinates_y - offset_y, self.pixel_coordinates_x - offset_x] = original
 
@@ -66,11 +66,14 @@ class LossCollectionUnordered(LossCollectionBase):
     def _make_into_spatial(self, spatial_loss_collection: LossCollectionSpatialBase,
                            image_width: int, image_height: int,
                            offset_x: int, offset_y: int,
-                           allow_sparse: bool) -> None:
+                           allow_sparse: bool,
+                           device: torch.device) -> None:
         assert self.pixelwise_rgb_loss is not None
 
         for attribute_name in self.tensor_attribute_names:
             unordered_value = getattr(self, attribute_name)
+            if unordered_value is None:
+                continue
             # print_tensor(f"make_into_spatial {attribute_name} unordered_value", unordered_value)
             spatial_value = self._make_attribute_spatial(
                 original=unordered_value,
@@ -78,14 +81,15 @@ class LossCollectionUnordered(LossCollectionBase):
                 image_height=image_height,
                 offset_x=offset_x,
                 offset_y=offset_y,
-                allow_sparse=allow_sparse
+                allow_sparse=allow_sparse,
+                device=device,
             )
             # print_tensor(f"make_into_spatial {attribute_name} ordered_value", spatial_value)
             setattr(spatial_loss_collection, attribute_name, spatial_value)
 
         spatial_loss_collection.valid_depth_pixel_count = self.valid_depth_pixel_count
 
-    def make_into_dense_spatial(self) -> LossCollectionSpatialBase:
+    def make_into_dense_spatial(self, device: torch.device) -> LossCollectionSpatialBase:
         x_min = torch.min(self.pixel_coordinates_x).item()
         x_max = torch.max(self.pixel_coordinates_x).item()
         y_min = torch.min(self.pixel_coordinates_y).item()
@@ -111,11 +115,13 @@ class LossCollectionUnordered(LossCollectionBase):
             offset_x=offset_x,
             offset_y=offset_y,
             allow_sparse=False,
+            device=device,
         )
 
         return spatial_loss_collection
 
-    def make_into_sparse_spatial(self, image_width: int, image_height: int) -> LossCollectionSparseSpatial:
+    def make_into_sparse_spatial(self, image_width: int, image_height: int,
+                                 device: torch.device) -> LossCollectionSparseSpatial:
         spatial_loss_collection = LossCollectionSparseSpatial()
 
         self._make_into_spatial(
@@ -125,6 +131,7 @@ class LossCollectionUnordered(LossCollectionBase):
             offset_x=0,
             offset_y=0,
             allow_sparse=True,
+            device=device,
         )
 
         return spatial_loss_collection

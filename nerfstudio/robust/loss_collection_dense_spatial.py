@@ -22,7 +22,8 @@ class LossCollectionDenseSpatial(LossCollectionSpatialBase):
         self.offset_y: int = offset_y
 
     def _make_attribute_spatial(self, dense_spatial: TensorType[...],
-                                image_width: int, image_height: int):
+                                image_width: int, image_height: int,
+                                device: torch.device):
         # print_tensor("make_attribute_spatial dense_spatial", dense_spatial)
         if dense_spatial.dtype == torch.float32:
             fill_value = torch.nan
@@ -31,13 +32,14 @@ class LossCollectionDenseSpatial(LossCollectionSpatialBase):
         else:
             assert False, dense_spatial.dtype
         sparse_spatial = torch.full((image_height, image_width), fill_value=fill_value, dtype=dense_spatial.dtype,
-                                    device="cpu")
+                                    device=device)
         # print_tensor("make_attribute_spatial sparse_spatial", sparse_spatial)
         sparse_spatial[self.pixel_coordinates_y, self.pixel_coordinates_x] = dense_spatial
 
         return sparse_spatial
 
-    def make_into_sparse_spatial(self, image_width: int, image_height: int) -> LossCollectionSparseSpatial:
+    def make_into_sparse_spatial(self, image_width: int, image_height: int,
+                                 device: torch.device) -> LossCollectionSparseSpatial:
         spatial_loss_collection = LossCollectionSparseSpatial()
 
         assert self.pixelwise_rgb_loss is not None
@@ -48,7 +50,8 @@ class LossCollectionDenseSpatial(LossCollectionSpatialBase):
             spatial_value = self._make_attribute_spatial(
                 dense_spatial=unordered_value,
                 image_width=image_width,
-                image_height=image_height
+                image_height=image_height,
+                device=device
             )
             # print_tensor(f"make_into_spatial {attribute_name} ordered_value", spatial_value)
             setattr(spatial_loss_collection, attribute_name, spatial_value)
