@@ -1,11 +1,13 @@
 import torch
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Union
 from torchtyping import TensorType
 
+from nerfstudio.robust.loss_collection_dense_spatial import LossCollectionDenseSpatial
+from nerfstudio.robust.loss_collection_sparse_spatial import LossCollectionSparseSpatial
 from nerfstudio.robust.print_utils import print_tensor
 
 from nerfstudio.robust.loss_collection_base import LossCollectionBase
-from nerfstudio.robust.loss_collection_spatial import LossCollectionSpatial
+from nerfstudio.robust.loss_collection_spatial import LossCollectionSpatialBase
 
 
 class LossCollectionUnordered(LossCollectionBase):
@@ -38,7 +40,10 @@ class LossCollectionUnordered(LossCollectionBase):
 
         return combined_loss_collection
 
-    def make_attribute_spatial(self, original: TensorType[...], image_width: int, image_height: int):
+    def _make_attribute_spatial(self, original: TensorType[...],
+                                image_width: int, image_height: int,
+                                offset_x: int, offset_y: int,
+                                allow_sparse: bool):
         # print_tensor("make_attribute_spatial original", original)
         if original.dtype == torch.float32:
             fill_value = torch.nan
@@ -48,21 +53,78 @@ class LossCollectionUnordered(LossCollectionBase):
             assert False, original.dtype
         spatial = torch.full((image_height, image_width), fill_value=fill_value, dtype=original.dtype, device="cpu")
         # print_tensor("make_attribute_spatial spatial", spatial)
-        spatial[self.pixel_coordinates_y, self.pixel_coordinates_x] = original
+        spatial[self.pixel_coordinates_y - offset_y, self.pixel_coordinates_x - offset_x] = original
+
+        if not allow_sparse:
+            if torch.any(spatial == fill_value):
+                print_tensor("original", original)
+                print_tensor("spatial", spatial)
+                raise RuntimeError("Spatial value has missing values, but should not be sparse: " + spatial)
+
         return spatial
 
-    def make_into_spatial(self, image_width: int, image_height: int) -> LossCollectionSpatial:
+    def _make_into_spatial(self, spatial_loss_collection: LossCollectionSpatialBase,
+                           image_width: int, image_height: int,
+                           offset_x: int, offset_y: int,
+                           allow_sparse: bool) -> None:
         assert self.pixelwise_rgb_loss is not None
-
-        spatial_loss_collection = LossCollectionSpatial()
 
         for attribute_name in self.tensor_attribute_names:
             unordered_value = getattr(self, attribute_name)
             # print_tensor(f"make_into_spatial {attribute_name} unordered_value", unordered_value)
-            spatial_value = self.make_attribute_spatial(unordered_value, image_width, image_height)
+            spatial_value = self._make_attribute_spatial(
+                original=unordered_value,
+                image_width=image_width,
+                image_height=image_height,
+                offset_x=offset_x,
+                offset_y=offset_y,
+                allow_sparse=allow_sparse
+            )
             # print_tensor(f"make_into_spatial {attribute_name} ordered_value", spatial_value)
             setattr(spatial_loss_collection, attribute_name, spatial_value)
 
         spatial_loss_collection.valid_depth_pixel_count = self.valid_depth_pixel_count
+
+    def make_into_dense_spatial(self) -> LossCollectionSpatialBase:
+        x_min = torch.min(self.pixel_coordinates_x).item()
+        x_max = torch.max(self.pixel_coordinates_x).item()
+        y_min = torch.min(self.pixel_coordinates_y).item()
+        y_max = torch.max(self.pixel_coordinates_y).item()
+
+        image_width = x_max - x_min + 1
+        image_height = y_max - y_min + 1
+        offset_x = x_min
+        offset_y = y_min
+
+        print(f"{image_width=}")
+        print(f"{image_height=}")
+
+        spatial_loss_collection = LossCollectionDenseSpatial(
+            offset_x=offset_x,
+            offset_y=offset_y
+        )
+
+        self._make_into_spatial(
+            spatial_loss_collection=spatial_loss_collection,
+            image_width=image_width,
+            image_height=image_height,
+            offset_x=offset_x,
+            offset_y=offset_y,
+            allow_sparse=False,
+        )
+
+        return spatial_loss_collection
+
+    def make_into_sparse_spatial(self, image_width: int, image_height: int) -> LossCollectionSparseSpatial:
+        spatial_loss_collection = LossCollectionSparseSpatial()
+
+        self._make_into_spatial(
+            spatial_loss_collection=spatial_loss_collection,
+            image_width=image_width,
+            image_height=image_height,
+            offset_x=0,
+            offset_y=0,
+            allow_sparse=True,
+        )
 
         return spatial_loss_collection

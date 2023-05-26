@@ -12,6 +12,9 @@ class LogUtils:
 
     @staticmethod
     def log_image_with_colormap(step: int, log_group_name: str, name: str, image: TensorType, cmap: str = "viridis"):
+        assert len(image.shape) == 2, image.shape
+        image = image.reshape((image.shape[0], image.shape[1], 1))
+
         # print_tensor("log_with_colormap " + name, image)
 
         # Handle NaN (for float images) and -1 (for int images) sepecially

@@ -69,7 +69,7 @@ from nerfstudio.utils.colors import get_color
 from nerfstudio.utils import writer
 
 from nerfstudio.robust.loss_collection_unordered import LossCollectionUnordered
-from nerfstudio.robust.loss_collection_spatial import LossCollectionSpatial
+from nerfstudio.robust.loss_collection_spatial import LossCollectionSpatialBase
 from nerfstudio.robust.print_utils import print_tensor_dict, print_tensor
 from nerfstudio.robust.robust_loss import RobustLoss
 from nerfstudio.robust.log_utils import LogUtils
@@ -644,24 +644,28 @@ class SurfaceModel(Model):
             loss_collections.append((loss_collection))
 
         combined_loss_collection = LossCollectionUnordered.from_combination(loss_collections)
-        loss_collection_spatial: LossCollectionSpatial = combined_loss_collection.make_into_spatial(
+
+        loss_collection_dense_spatial: LossCollectionDenseSpatial = combined_loss_collection.make_into_dense_spatial()
+
+        LogUtils.log_image_with_colormap(step, log_group_name, "dense pixelwise rgb loss",
+                                         loss_collection_dense_spatial.pixelwise_rgb_loss)
+
+        loss_collection_sparse_spatial: LossCollectionSparseSpatial = loss_collection_dense_spatial.make_into_sparse_spatial(
             image_width=image_width,
             image_height=image_height)
 
-        # print("loss_collection_spatial")
-        # loss_collection_spatial.print_components()
-        # 1 dimension at the end is needed for wandb writer
-        loss_collection_spatial.reshape_components((image_height, image_width, 1))
-        # loss_collection_spatial.print_components()
+        # print("loss_collection_sparse_spatial")
+        # loss_collection_sparse_spatial.print_components()
 
-        self.log_pixelwise_loss_images_from_loss_collection(loss_collection_spatial, step, log_group_name,
+        self.log_pixelwise_loss_images_from_loss_collection(loss_collection_sparse_spatial, step, log_group_name,
                                                             log_masks=True, loss_collection_ids=True)
-        loss_collection_spatial.apply_masks()
-        self.log_pixelwise_loss_images_from_loss_collection(loss_collection_spatial, step, log_group_name,
+        loss_collection_sparse_spatial.apply_masks()
+        self.log_pixelwise_loss_images_from_loss_collection(loss_collection_sparse_spatial, step, log_group_name,
                                                             log_masks=False, loss_collection_ids=False)
 
     @torch.no_grad()
-    def log_pixelwise_loss_images_from_loss_collection(self, loss_collection_spatial: LossCollectionSpatial, step: int,
+    def log_pixelwise_loss_images_from_loss_collection(self, loss_collection_spatial: LossCollectionSpatialBase,
+                                                       step: int,
                                                        log_group_name: str, log_masks: bool, loss_collection_ids: bool):
 
         masks_text = " (after mask)" if loss_collection_spatial.masks_are_applied else " (before mask)"

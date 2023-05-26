@@ -7,11 +7,11 @@ from nerfstudio.robust.print_utils import print_tensor
 from nerfstudio.robust.loss_collection_base import LossCollectionBase
 
 
-class LossCollectionSpatial(LossCollectionBase):
+class LossCollectionSpatialBase(LossCollectionBase):
     """
-    A LossCollection with the same shape as an image.
+    A LossCollection with the same shape as an image or an image path.
     The first two dimensions are height and width.
-    NaN (for float images) and -1 (for int images) mean that no data is available for that pixel.
+    May or may not contain missing values.
     """
 
     def __init__(self):
