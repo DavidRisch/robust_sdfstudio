@@ -654,19 +654,24 @@ class SurfaceModel(Model):
 
         loss_collections_by_name: Dict[str, List[LossCollectionBase]] = defaultdict(list)
 
-        # interlaced columns
-        # def extract_part(original:Tensor, part_index:int) -> Tensor:
-        #     return original[part_index::part_count, ...]
 
-        # large rows
-        def extract_part(original: Tensor, part_index: int) -> Tensor:
+        def extract_part_interlaced_columns(original:Tensor, part_index:int) -> Tensor:
+            return original[part_index::part_count, ...]
+
+        def extract_part_thick_rows(original: Tensor, part_index: int) -> Tensor:
             return original[part_index * part_size: (part_index + 1) * part_size, ...]
 
-        def extract_part(original: Tensor, part_index: int) -> Tensor:
-            index_x = part_index % 2
-            index_y = part_index // 2
+        # # TODO:
+        # def extract_part(original: Tensor, part_index: int) -> Tensor:
+        #     index_x = part_index % 2
+        #     index_y = part_index // 2
+        #
+        #     return original[part_index * part_size: (part_index + 1) * part_size, ...]
 
-            return original[part_index * part_size: (part_index + 1) * part_size, ...]
+        if self.config.robust_loss_kernel_name != "NoKernel":
+            extract_part = extract_part_thick_rows
+        else:
+            extract_part = extract_part_interlaced_columns
 
         for part_index in range(part_count):
             ray_bundle_part = extract_part(ray_bundle_flattened, part_index)
@@ -695,16 +700,21 @@ class SurfaceModel(Model):
         for name, loss_collections in loss_collections_by_name.items():
             combined_loss_collection = LossCollectionUnordered.from_combination(loss_collections)
 
-            loss_collection_dense_spatial: LossCollectionDenseSpatial = combined_loss_collection.make_into_dense_spatial(
-                device=torch.device("cpu"))
+            # loss_collection_dense_spatial: LossCollectionDenseSpatial = combined_loss_collection.make_into_dense_spatial(
+            #     device=torch.device("cpu"))
+            #
+            # # print("loss_collection_dense_spatial in log_pixelwise_loss")
+            # # loss_collection_dense_spatial.print_components()
+            #
+            # # LogUtils.log_image_with_colormap(step, log_group_name, "dense pixelwise rgb loss",
+            # #                                  loss_collection_dense_spatial.pixelwise_rgb_loss)
+            #
+            # loss_collection_sparse_spatial: LossCollectionSparseSpatial = loss_collection_dense_spatial.make_into_sparse_spatial(
+            #     image_width=image_width,
+            #     image_height=image_height,
+            #     device=torch.device("cpu"))
 
-            # print("loss_collection_dense_spatial in log_pixelwise_loss")
-            # loss_collection_dense_spatial.print_components()
-
-            # LogUtils.log_image_with_colormap(step, log_group_name, "dense pixelwise rgb loss",
-            #                                  loss_collection_dense_spatial.pixelwise_rgb_loss)
-
-            loss_collection_sparse_spatial: LossCollectionSparseSpatial = loss_collection_dense_spatial.make_into_sparse_spatial(
+            loss_collection_sparse_spatial: LossCollectionSparseSpatial = combined_loss_collection.make_into_sparse_spatial(
                 image_width=image_width,
                 image_height=image_height,
                 device=torch.device("cpu"))

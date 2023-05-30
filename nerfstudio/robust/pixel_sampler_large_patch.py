@@ -48,6 +48,7 @@ def collate_image_dataset_batch_large_patch(batch: Dict, num_rays_per_batch: int
 
     image_index = random.randint(0, num_images - 1)
 
+    # TODO: set based on batch size so this also works for 512x512 images
     patch_width = image_width // 2
     patch_height = image_height // 2
 
