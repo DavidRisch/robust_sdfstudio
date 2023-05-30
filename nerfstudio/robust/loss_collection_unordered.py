@@ -59,7 +59,7 @@ class LossCollectionUnordered(LossCollectionBase):
             if torch.any(spatial == fill_value):
                 print_tensor("original", original)
                 print_tensor("spatial", spatial)
-                raise RuntimeError("Spatial value has missing values, but should not be sparse: " + spatial)
+                raise RuntimeError("Spatial value has missing values, but should not be sparse")
 
         return spatial
 
@@ -100,8 +100,8 @@ class LossCollectionUnordered(LossCollectionBase):
         offset_x = x_min
         offset_y = y_min
 
-        print(f"{image_width=}")
-        print(f"{image_height=}")
+        # print(f"{image_width=}")
+        # print(f"{image_height=}")
 
         spatial_loss_collection = LossCollectionDenseSpatial(
             offset_x=offset_x,

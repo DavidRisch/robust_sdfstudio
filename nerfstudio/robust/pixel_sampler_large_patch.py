@@ -99,7 +99,7 @@ def collate_image_dataset_batch_large_patch(batch: Dict, num_rays_per_batch: int
     if keep_full_image:
         collated_batch["full_image"] = batch["image"]
 
-    collated_batch["image_is_a_single_image_path"] = True
+    collated_batch["image_is_spatial_and_contiguous"] = True
 
     return collated_batch
 

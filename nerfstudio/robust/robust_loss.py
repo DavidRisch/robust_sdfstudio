@@ -2,6 +2,7 @@ import torch
 from typing import TYPE_CHECKING, Dict, List, Tuple, Optional
 from torchtyping import TensorType
 
+from nerfstudio.robust.loss_collection_dense_spatial import LossCollectionDenseSpatial
 from nerfstudio.robust.print_utils import print_tensor
 
 from nerfstudio.robust.loss_collection_unordered import LossCollectionUnordered
@@ -58,6 +59,24 @@ class RobustLoss:
         mask[sorted_loss_indices_keep] = 1
 
         return mask
+
+    @classmethod
+    def maybe_apply_kernel_to_losses(cls, loss_collection: LossCollectionDenseSpatial,
+                                     config: "SurfaceModelConfig", device: torch.device) -> None:
+
+        if config.robust_loss_kernel_name == "NoKernel":
+            kernel = None
+        elif config.robust_loss_kernel_name == "Box_5x5":
+            size = 5
+            kernel = torch.ones((1, 1, 5, 5), dtype=torch.float32, device=device)
+            kernel /= size ** 2
+        else:
+            raise RuntimeError("Unknown value for robust_loss_kernel_name: " + config.robust_loss_kernel_name)
+
+        print_tensor("kernel", kernel)
+
+        if kernel is not None:
+            loss_collection.apply_convolution(kernel)
 
     @classmethod
     def maybe_create_loss_masks_from_losses(cls, loss_collection: LossCollectionUnordered,

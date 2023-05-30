@@ -452,6 +452,7 @@ class VanillaDataManager(DataManager):  # pylint: disable=abstract-method
                 batch["image"] = batch["image"].images[0]
                 camera_ray_bundle = camera_ray_bundle.reshape((*batch["image"].shape[:-1], 1))
             image_idx = int(camera_ray_bundle.camera_indices[0, 0, 0])
+            batch["image_is_spatial_and_contiguous"] = True
             return image_idx, camera_ray_bundle, batch
         raise ValueError("No more train images")
 
@@ -480,6 +481,7 @@ class VanillaDataManager(DataManager):  # pylint: disable=abstract-method
                 batch["image"] = batch["image"].images[0]
                 camera_ray_bundle = camera_ray_bundle.reshape((*batch["image"].shape[:-1], 1))
             image_idx = int(camera_ray_bundle.camera_indices[0, 0, 0])
+            batch["image_is_spatial_and_contiguous"] = True
             return image_idx, camera_ray_bundle, batch
         raise ValueError("No more eval images")
 
