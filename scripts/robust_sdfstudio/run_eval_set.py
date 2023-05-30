@@ -7,7 +7,11 @@ import os
 from typing import Optional, List
 import subprocess
 
-own_dataset_path = os.environ["DATASET_DIR"]
+dataset_base_path = os.environ["DATASET_BASE_DIR"]
+print(f"{dataset_base_path=}")
+dataset_name = "distracted_dataset_v6"
+print(f"{dataset_name=}")
+own_dataset_path = os.path.join(dataset_base_path, dataset_name)
 print(f"{own_dataset_path=}")
 
 repo_root = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..'))
@@ -16,7 +20,7 @@ train_script_path = os.path.join(repo_root, "scripts/train.py")
 print(f"{train_script_path=}")
 
 # this should be incremented whenever anything is changed anywhere which could change the results
-eval_set_version = 4
+eval_set_version = 5
 
 
 class RunConfig:
@@ -47,6 +51,7 @@ def prepare_run(run_config: RunConfig) -> List[str]:
         "--pipeline.model.sdf-field.inside-outside", "False",
         "--vis", "wandb",
         "--experiment-name", experiment_name,
+        #"--logging.local-writer.max-log-size", "0",
         "--pipeline.datamanager.train_num_rays_per_batch", str(4096),
         "--pipeline.datamanager.eval_num_rays_per_batch", str(4096),
         "--trainer.steps-per-eval-image", str(250),
@@ -106,7 +111,7 @@ def main():
                                          sample_large_image_patches=False))
 
     for dataset_kind in ["distracted"]:
-        for resolution in [128, 512]:
+        for resolution in [128]:
             run_configs.append(RunConfig("gtDistractedMask",
                                          dataset_kind=dataset_kind,
                                          resolution=resolution,
@@ -139,7 +144,7 @@ def main():
         (index, arguments) for (index, arguments) in enumerate(run_arguments)
     ]
 
-    # run_arguments_with_index = run_arguments_with_index[2:]
+    run_arguments_with_index = run_arguments_with_index[2:]
 
     for index, arguments in run_arguments_with_index:
         print()
