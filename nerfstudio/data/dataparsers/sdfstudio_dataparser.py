@@ -253,6 +253,8 @@ class SDFStudio(DataParser):
                     path_mono_depth = path_mono_depth.replace("gt", "omnidata")
                     path_mono_normal = frame["mono_normal_path"]
                     path_mono_normal = path_mono_normal.replace("gt", "omnidata")
+                else:
+                    raise ValueError("use_gt_or_omnidata_maps should be 'gt' or 'omnidata'")
 
                 # load mono depth
                 depth = np.load(self.config.data / path_mono_depth)
