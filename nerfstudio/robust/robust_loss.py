@@ -115,7 +115,7 @@ class RobustLoss:
         # don't normalize (used to dilate mask)
 
         def apply_classify_patches(old_value):
-            print_tensor("apply_classify_patches old_value", old_value)
+            # print_tensor("apply_classify_patches old_value", old_value)
 
             width, height = old_value.shape[1], old_value.shape[0]
             old_value = old_value.reshape((1, 1, height, width))
@@ -123,7 +123,7 @@ class RobustLoss:
             # modified_value contains values that are 0 (outlier) or 1 (inlier)
             modified_value = F.conv2d(input=old_value, weight=outer_neighbourhood_kernel, stride=1, padding="same")
             # modified_value contains values in the range [0,1] (proportion of inliers in a large neighborhood)
-            print_tensor("apply_classify_patches after first conv2d", modified_value)
+            # print_tensor("apply_classify_patches after first conv2d", modified_value)
             modified_value = (modified_value >= 0.6).float()
             # modified_value contains values that are 0 or 1 (large neighborhood contains enough inliers)
 
@@ -135,7 +135,7 @@ class RobustLoss:
             # modified_value contains values that are 0 (outlier) or 1 (inlier)
 
             modified_value = modified_value.reshape((height, width))
-            print_tensor("apply_classify_patches modified_value", modified_value)
+            # print_tensor("apply_classify_patches modified_value", modified_value)
 
             return modified_value
 
