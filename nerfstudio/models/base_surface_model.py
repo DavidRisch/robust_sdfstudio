@@ -399,7 +399,8 @@ class SurfaceModel(Model):
 
     def get_loss_collection(self, outputs: Dict, batch: Dict, pixel_coordinates_x: TensorType[...] = None,
                             pixel_coordinates_y: TensorType[...] = None,
-                            all_loss_collection_steps: Optional[Dict[str, LossCollectionBase]] = None) -> Union[
+                            all_loss_collection_steps: Optional[Dict[str, LossCollectionBase]] = None,
+                            step: Optional[int] = None) -> Union[
         LossCollectionUnordered, LossCollectionDenseSpatial]:
         loss_collection = LossCollectionUnordered()
         loss_collection.pixel_coordinates_x = pixel_coordinates_x
@@ -441,7 +442,7 @@ class SurfaceModel(Model):
 
         assert isinstance(loss_collection, LossCollectionUnordered)
         self.robust_loss_mask_creator.maybe_create_loss_masks_from_losses(loss_collection=loss_collection,
-                                                                          config=self.config)
+                                                                          config=self.config, step=step)
 
         if self.config.robust_loss_kernel_name != "NoKernel" or self.config.robust_loss_classify_patches_mode != "Off":
             assert batch.get("image_is_spatial_and_contiguous", None) is True
@@ -528,7 +529,7 @@ class SurfaceModel(Model):
 
         loss_collection: Union[LossCollectionUnordered, LossCollectionDenseSpatial] = \
             self.get_loss_collection(outputs=outputs, batch=batch, pixel_coordinates_x=pixel_coordinates_x,
-                                     pixel_coordinates_y=pixel_coordinates_y)
+                                     pixel_coordinates_y=pixel_coordinates_y, step=batch["step"])
 
         loss_collection.apply_masks()
 

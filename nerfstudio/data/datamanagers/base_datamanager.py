@@ -443,6 +443,9 @@ class VanillaDataManager(DataManager):  # pylint: disable=abstract-method
         batch = self.train_pixel_sampler.sample(image_batch)
         ray_indices = batch["indices"]
         ray_bundle = self.train_ray_generator(ray_indices)
+
+        batch["step"] = step
+
         return ray_bundle, batch
 
     def next_train_image(self, step: int) -> Tuple[int, RayBundle, Dict]:
@@ -533,4 +536,7 @@ class FlexibleDataManager(VanillaDataManager):
             additional_output["src_cameras"] = self.train_dataset._dataparser_outputs.cameras[
                 image_batch["src_idxs"][0]
             ]
+
+        batch["step"] = step
+
         return ray_bundle, batch, additional_output
