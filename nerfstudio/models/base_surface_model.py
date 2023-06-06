@@ -434,6 +434,9 @@ class SurfaceModel(Model):
                                                              mask)
             loss_collection.pixelwise_depth_loss = pixelwise_depth_loss.flatten()
 
+        assert isinstance(loss_collection, LossCollectionUnordered)
+        RobustLoss.maybe_create_loss_masks_from_losses(loss_collection=loss_collection, config=self.config)
+
         if self.config.robust_loss_kernel_name != "NoKernel":
             assert batch.get("image_is_spatial_and_contiguous", None) is True
             loss_collection: LossCollectionDenseSpatial = loss_collection.make_into_dense_spatial(
@@ -442,18 +445,15 @@ class SurfaceModel(Model):
             if all_loss_collection_steps is not None:
                 all_loss_collection_steps["before_kernel"] = copy.deepcopy(loss_collection)
 
-            RobustLoss.maybe_apply_kernel_to_losses(loss_collection=loss_collection, config=self.config,
-                                                    device=self.device)
+            RobustLoss.maybe_apply_kernel_to_masks(loss_collection=loss_collection, config=self.config,
+                                                   device=self.device)
 
             loss_collection: LossCollectionUnordered = loss_collection.make_into_unordered()
-
-        assert isinstance(loss_collection, LossCollectionUnordered)
-
-        RobustLoss.maybe_create_loss_masks_from_losses(loss_collection=loss_collection, config=self.config)
 
         if all_loss_collection_steps is not None:
             all_loss_collection_steps["final"] = loss_collection
 
+        assert isinstance(loss_collection, LossCollectionUnordered)
         return loss_collection
 
     def get_loss_dict(self, outputs, batch, metrics_dict=None, pixelwise=False) -> Dict:
@@ -706,7 +706,7 @@ class SurfaceModel(Model):
             # # print("loss_collection_dense_spatial in log_pixelwise_loss")
             # # loss_collection_dense_spatial.print_components()
             #
-            # # LogUtils.log_image_with_colormap(step, log_group_name, "dense pixelwise rgb loss",
+            # # LogUtils.log_image_with_colormap(step, log_group_names, "dense pixelwise rgb loss",
             # #                                  loss_collection_dense_spatial.pixelwise_rgb_loss)
             #
             # loss_collection_sparse_spatial: LossCollectionSparseSpatial = loss_collection_dense_spatial.make_into_sparse_spatial(
@@ -725,57 +725,60 @@ class SurfaceModel(Model):
             sparse_spatial_loss_collection_by_name[name] = loss_collection_sparse_spatial
 
         if "before_kernel" in sparse_spatial_loss_collection_by_name:
-            self.log_pixelwise_loss_images_from_loss_collection(sparse_spatial_loss_collection_by_name["before_kernel"],
-                                                                step, log_group_name,
-                                                                log_masks=False, loss_collection_ids=True,
-                                                                name="before_kernel: ")
+            self.log_pixelwise_loss_images_from_loss_collection(
+                sparse_spatial_loss_collection_by_name["before_kernel"], step,
+                log_group_names=[log_group_name, "10 before kernel"],
+                log_losses=False, log_masks=True, log_loss_collection_ids=False)
 
         loss_collection_sparse_spatial_final = sparse_spatial_loss_collection_by_name["final"]
 
-        self.log_pixelwise_loss_images_from_loss_collection(loss_collection_sparse_spatial_final, step, log_group_name,
-                                                            log_masks=True, loss_collection_ids=True,
-                                                            name="")
+        self.log_pixelwise_loss_images_from_loss_collection(
+            loss_collection_sparse_spatial_final, step,
+            log_group_names=[log_group_name, "80 before applying mask"],
+            log_losses=True, log_masks=True, log_loss_collection_ids=True)
         loss_collection_sparse_spatial_final.apply_masks()
-        self.log_pixelwise_loss_images_from_loss_collection(loss_collection_sparse_spatial_final, step, log_group_name,
-                                                            log_masks=False, loss_collection_ids=False,
-                                                            name="")
+        self.log_pixelwise_loss_images_from_loss_collection(
+            loss_collection_sparse_spatial_final, step,
+            log_group_names=[log_group_name, "90 after applying mask"],
+            log_losses=True, log_masks=False, log_loss_collection_ids=False)
 
     @torch.no_grad()
     def log_pixelwise_loss_images_from_loss_collection(self, loss_collection_spatial: LossCollectionSpatialBase,
                                                        step: int,
-                                                       log_group_name: str, log_masks: bool, loss_collection_ids: bool,
-                                                       name: str):
+                                                       log_group_names: List[str],
+                                                       log_losses: bool, log_masks: bool,
+                                                       log_loss_collection_ids: bool):
 
-        masks_text = " (after mask)" if loss_collection_spatial.masks_are_applied else " (before mask)"
-
-        LogUtils.log_image_with_colormap(step, log_group_name, name + "pixelwise rgb loss" + masks_text,
-                                         loss_collection_spatial.pixelwise_rgb_loss)
+        if log_losses:
+            LogUtils.log_image_with_colormap(step, log_group_names, "11 loss: rgb",
+                                             loss_collection_spatial.pixelwise_rgb_loss)
         if log_masks:
-            LogUtils.log_image_with_colormap(step, log_group_name, name + "mask for rgb loss",
+            LogUtils.log_image_with_colormap(step, log_group_names, "31 mask: rgb",
                                              loss_collection_spatial.rgb_mask,
                                              cmap="black_and_white")
 
-        # LogUtils.log_image_with_colormap(step,log_group_name,"pixelwise pixel_coordinates x", loss_collection_spatial.pixel_coordinates_x)
-        # LogUtils.log_image_with_colormap(step,log_group_name,"pixelwise pixel_coordinates y", loss_collection_spatial.pixel_coordinates_y)
-        if loss_collection_ids:
-            LogUtils.log_image_with_colormap(step, log_group_name, name + "pixelwise loss_collection_id",
+        # LogUtils.log_image_with_colormap(step,log_group_names,"pixelwise pixel_coordinates x", loss_collection_spatial.pixel_coordinates_x)
+        # LogUtils.log_image_with_colormap(step,log_group_names,"pixelwise pixel_coordinates y", loss_collection_spatial.pixel_coordinates_y)
+        if log_loss_collection_ids:
+            LogUtils.log_image_with_colormap(step, log_group_names, "80 loss_collection_ids",
                                              loss_collection_spatial.loss_collection_id)
-
-        LogUtils.log_image_with_colormap(step, log_group_name, name + "pixelwise depth loss" + masks_text,
-                                         loss_collection_spatial.pixelwise_depth_loss)
+        if log_losses:
+            LogUtils.log_image_with_colormap(step, log_group_names, "12 loss: depth",
+                                             loss_collection_spatial.pixelwise_depth_loss)
         if log_masks:
-            LogUtils.log_image_with_colormap(step, log_group_name, name + "mask for depth loss",
+            LogUtils.log_image_with_colormap(step, log_group_names, "32 mask: depth",
                                              loss_collection_spatial.depth_mask,
                                              cmap="black_and_white")
 
-        LogUtils.log_image_with_colormap(step, log_group_name, name + "pixelwise normal_l1 loss component" + masks_text,
-                                         loss_collection_spatial.pixelwise_normal_l1)
-        LogUtils.log_image_with_colormap(step, log_group_name,
-                                         name + "pixelwise normal_cos loss component" + masks_text,
-                                         loss_collection_spatial.pixelwise_normal_cos)
-        LogUtils.log_image_with_colormap(step, log_group_name, name + "pixelwise normal loss" + masks_text,
-                                         loss_collection_spatial.get_pixelwise_normal_loss())
+        if log_losses:
+            if False:
+                LogUtils.log_image_with_colormap(step, log_group_names, "14 loss: normal_l1",
+                                                 loss_collection_spatial.pixelwise_normal_l1)
+                LogUtils.log_image_with_colormap(step, log_group_names, "15 loss: normal_cos",
+                                                 loss_collection_spatial.pixelwise_normal_cos)
+            LogUtils.log_image_with_colormap(step, log_group_names, "13 loss: normal",
+                                             loss_collection_spatial.get_pixelwise_normal_loss())
         if log_masks:
-            LogUtils.log_image_with_colormap(step, log_group_name, name + "mask for normal loss",
+            LogUtils.log_image_with_colormap(step, log_group_names, "33 mask: normal",
                                              loss_collection_spatial.normal_mask,
                                              cmap="black_and_white")

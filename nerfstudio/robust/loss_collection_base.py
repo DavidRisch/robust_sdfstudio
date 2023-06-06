@@ -52,9 +52,11 @@ class LossCollectionBase:
     def set_full_masks(self, device: torch.device):
         assert self.pixelwise_rgb_loss is not None
         mask_shape = self.pixelwise_rgb_loss.shape
-        self.rgb_mask = torch.full(mask_shape, fill_value=1, dtype=torch.long, device=device)
-        self.depth_mask = torch.full(mask_shape, fill_value=1, dtype=torch.long, device=device)
-        self.normal_mask = torch.full(mask_shape, fill_value=1, dtype=torch.long, device=device)
+        fill_value = 1.0
+        dtype = torch.float
+        self.rgb_mask = torch.full(mask_shape, fill_value=fill_value, dtype=dtype, device=device)
+        self.depth_mask = torch.full(mask_shape, fill_value=fill_value, dtype=dtype, device=device)
+        self.normal_mask = torch.full(mask_shape, fill_value=fill_value, dtype=dtype, device=device)
         # print_tensor("after set_full_masks depth_mask", self.depth_mask)
 
     def apply_masks(self):
@@ -71,7 +73,7 @@ class LossCollectionBase:
             for loss_attribute_name in loss_attribute_names:
                 value = getattr(self, loss_attribute_name)
                 if value is not None:
-                    value[mask == 0] = 0
+                    value[mask == 0.0] = 0
                     setattr(self, loss_attribute_name, value)
 
         self.masks_are_applied = True

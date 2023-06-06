@@ -54,21 +54,25 @@ class RobustLoss:
         # print_tensor("sorted_loss_values_keep", sorted_loss_values_keep)
         # print_tensor("sorted_loss_indices_keep", sorted_loss_indices_keep)
 
-        mask = torch.zeros(loss.shape, dtype=torch.long)
+        mask = torch.zeros(loss.shape, dtype=torch.float, device=loss.get_device())
 
         mask[sorted_loss_indices_keep] = 1
 
         return mask
 
     @classmethod
-    def maybe_apply_kernel_to_losses(cls, loss_collection: LossCollectionDenseSpatial,
-                                     config: "SurfaceModelConfig", device: torch.device) -> None:
+    def maybe_apply_kernel_to_masks(cls, loss_collection: LossCollectionDenseSpatial,
+                                    config: "SurfaceModelConfig", device: torch.device) -> None:
 
         if config.robust_loss_kernel_name == "NoKernel":
             kernel = None
+        elif config.robust_loss_kernel_name == "Box_3x3":
+            size = 3
+            kernel = torch.ones((1, 1, size, size), dtype=torch.float32, device=device)
+            kernel /= size ** 2
         elif config.robust_loss_kernel_name == "Box_5x5":
             size = 5
-            kernel = torch.ones((1, 1, 5, 5), dtype=torch.float32, device=device)
+            kernel = torch.ones((1, 1, size, size), dtype=torch.float32, device=device)
             kernel /= size ** 2
         else:
             raise RuntimeError("Unknown value for robust_loss_kernel_name: " + config.robust_loss_kernel_name)
@@ -76,7 +80,7 @@ class RobustLoss:
         # print_tensor("kernel", kernel)
 
         if kernel is not None:
-            loss_collection.apply_convolution(kernel)
+            loss_collection.apply_convolution_to_masks(kernel)
 
     @classmethod
     def maybe_create_loss_masks_from_losses(cls, loss_collection: LossCollectionUnordered,

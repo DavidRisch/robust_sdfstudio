@@ -22,9 +22,8 @@ class LossCollectionDenseSpatial(LossCollectionSpatialBase):
         self.offset_x: int = offset_x
         self.offset_y: int = offset_y
 
-    def apply_convolution(self, kernel: torch.Tensor):
-        relevant_tensor_attribute_names = ["pixelwise_rgb_loss", "pixelwise_depth_loss", "pixelwise_normal_l1",
-                                           "pixelwise_normal_cos"]
+    def apply_convolution_to_masks(self, kernel: torch.Tensor):
+        relevant_tensor_attribute_names = ["rgb_mask", "depth_mask", "normal_mask"]
 
         for attribute_name in relevant_tensor_attribute_names:
             old_value = getattr(self, attribute_name)
@@ -36,6 +35,7 @@ class LossCollectionDenseSpatial(LossCollectionSpatialBase):
             # print_tensor(f"{attribute_name} before convolution", old_value)
 
             modified_value = F.conv2d(input=old_value, weight=kernel, stride=1, padding="same")
+            modified_value = (modified_value >= 0.5).float()
 
             # print_tensor(f"{attribute_name} after convolution", modified_value)
             modified_value = modified_value.reshape((height, width))

@@ -11,7 +11,8 @@ from torchtyping import TensorType
 class LogUtils:
 
     @staticmethod
-    def log_image_with_colormap(step: int, log_group_name: str, name: str, image: TensorType, cmap: str = "viridis"):
+    def log_image_with_colormap(step: int, log_group_names: List[str], name: str, image: TensorType,
+                                cmap: str = "viridis"):
         assert len(image.shape) == 2, image.shape
         image = image.reshape((image.shape[0], image.shape[1], 1))
 
@@ -27,8 +28,8 @@ class LogUtils:
         else:
             assert False, image.dtype
 
-        # print_tensor(f"log_with_colormap {log_group_name}/{name} image", image)
-        # print_tensor(f"log_with_colormap {log_group_name}/{name} blank_mask", blank_mask)
+        # print_tensor(f"log_with_colormap {log_group_names} {name} image", image)
+        # print_tensor(f"log_with_colormap {log_group_names} {name} blank_mask", blank_mask)
         image_without_blanks = torch.clone(image)
         image_without_blanks[blank_mask] = 0
 
@@ -48,5 +49,5 @@ class LogUtils:
 
         blank_mask = blank_mask.reshape(blank_mask.shape[:2])
         colored_loss[blank_mask] = blank_color
-        # print_tensor(f"log_with_colormap {log_group_name}/{name} colored_loss", colored_loss)
-        writer.put_image(name=log_group_name + "/" + name, image=colored_loss, step=step)
+        # print_tensor(f"log_with_colormap {log_group_names} {name} colored_loss", colored_loss)
+        writer.put_image(name="/".join(log_group_names) + "/" + name, image=colored_loss, step=step)
