@@ -73,6 +73,7 @@ from nerfstudio.robust.loss_collection_unordered import LossCollectionUnordered
 from nerfstudio.robust.loss_collection_spatial import LossCollectionSpatialBase
 from nerfstudio.robust.print_utils import print_tensor_dict, print_tensor
 from nerfstudio.robust.robust_loss import RobustLoss
+from nerfstudio.robust.robust_loss_mask_creator import RobustLossMaskCreator
 from nerfstudio.robust.log_utils import LogUtils
 
 
@@ -253,6 +254,8 @@ class SurfaceModel(Model):
         self.psnr = PeakSignalNoiseRatio(data_range=1.0)
         self.ssim = structural_similarity_index_measure
         self.lpips = LearnedPerceptualImagePatchSimilarity()
+
+        self.robust_loss_mask_creator = RobustLossMaskCreator()
 
     def get_param_groups(self) -> Dict[str, List[Parameter]]:
         param_groups = {}
@@ -437,7 +440,8 @@ class SurfaceModel(Model):
             loss_collection.pixelwise_depth_loss = pixelwise_depth_loss.flatten()
 
         assert isinstance(loss_collection, LossCollectionUnordered)
-        RobustLoss.maybe_create_loss_masks_from_losses(loss_collection=loss_collection, config=self.config)
+        self.robust_loss_mask_creator.maybe_create_loss_masks_from_losses(loss_collection=loss_collection,
+                                                                          config=self.config)
 
         if self.config.robust_loss_kernel_name != "NoKernel" or config.robust_loss_classify_patches_mode != "Off":
             assert batch.get("image_is_spatial_and_contiguous", None) is True
