@@ -443,7 +443,7 @@ class SurfaceModel(Model):
         self.robust_loss_mask_creator.maybe_create_loss_masks_from_losses(loss_collection=loss_collection,
                                                                           config=self.config)
 
-        if self.config.robust_loss_kernel_name != "NoKernel" or config.robust_loss_classify_patches_mode != "Off":
+        if self.config.robust_loss_kernel_name != "NoKernel" or self.config.robust_loss_classify_patches_mode != "Off":
             assert batch.get("image_is_spatial_and_contiguous", None) is True
             loss_collection: LossCollectionDenseSpatial = loss_collection.make_into_dense_spatial(
                 device=self.device)
