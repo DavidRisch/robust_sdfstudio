@@ -1,6 +1,7 @@
 import torch
 from typing import TYPE_CHECKING, Dict, List, Tuple, Optional
 from torchtyping import TensorType
+import torch.nn.functional as F
 
 from nerfstudio.robust.loss_collection_dense_spatial import LossCollectionDenseSpatial
 from nerfstudio.robust.print_utils import print_tensor
@@ -80,7 +81,23 @@ class RobustLoss:
         # print_tensor("kernel", kernel)
 
         if kernel is not None:
-            loss_collection.apply_convolution_to_masks(kernel)
+            def apply_kernel(old_value):
+                width, height = old_value.shape[1], old_value.shape[0]
+
+                # print_tensor(f"{attribute_name} before convolution", old_value)
+                old_value = old_value.reshape((1, 1, height, width))
+                # print_tensor(f"{attribute_name} before convolution", old_value)
+
+                modified_value = F.conv2d(input=old_value, weight=kernel, stride=1, padding="same")
+                modified_value = (modified_value >= 0.5).float()
+
+                # print_tensor(f"{attribute_name} after convolution", modified_value)
+                modified_value = modified_value.reshape((height, width))
+                # print_tensor(f"{attribute_name} after convolution", modified_value)
+
+                return modified_value
+
+            loss_collection.apply_function_to_masks(function=apply_kernel)
 
     @classmethod
     def maybe_create_loss_masks_from_losses(cls, loss_collection: LossCollectionUnordered,

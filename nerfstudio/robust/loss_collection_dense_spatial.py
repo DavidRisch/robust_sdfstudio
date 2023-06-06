@@ -1,7 +1,7 @@
 import torch
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Callable
 from torchtyping import TensorType
-import torch.nn.functional as F
+
 
 from nerfstudio.robust.loss_collection_sparse_spatial import LossCollectionSparseSpatial
 from nerfstudio.robust.loss_collection_spatial import LossCollectionSpatialBase
@@ -22,24 +22,13 @@ class LossCollectionDenseSpatial(LossCollectionSpatialBase):
         self.offset_x: int = offset_x
         self.offset_y: int = offset_y
 
-    def apply_convolution_to_masks(self, kernel: torch.Tensor):
+    def apply_function_to_masks(self, function: Callable[[torch.Tensor], torch.Tensor]):
         relevant_tensor_attribute_names = ["rgb_mask", "depth_mask", "normal_mask"]
 
         for attribute_name in relevant_tensor_attribute_names:
             old_value = getattr(self, attribute_name)
 
-            width, height = old_value.shape[1], old_value.shape[0]
-
-            # print_tensor(f"{attribute_name} before convolution", old_value)
-            old_value = old_value.reshape((1, 1, height, width))
-            # print_tensor(f"{attribute_name} before convolution", old_value)
-
-            modified_value = F.conv2d(input=old_value, weight=kernel, stride=1, padding="same")
-            modified_value = (modified_value >= 0.5).float()
-
-            # print_tensor(f"{attribute_name} after convolution", modified_value)
-            modified_value = modified_value.reshape((height, width))
-            # print_tensor(f"{attribute_name} after convolution", modified_value)
+            modified_value = function(old_value)
 
             setattr(self, attribute_name, modified_value)
 
