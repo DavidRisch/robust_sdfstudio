@@ -153,6 +153,8 @@ class SDFStudioDataParserConfig(DataParserConfig):
     """Directory specifying location of data."""
     include_mono_prior: bool = False
     """whether or not to load monocular depth and normal """
+    use_gt_or_omnidata_maps: str = 'GT'
+    """specify which depth and normal maps should be used: Omnidata or GT"""  
     include_sensor_depth: bool = False
     """whether or not to load sensor depth"""
     include_foreground_mask: bool = False
@@ -242,8 +244,18 @@ class SDFStudio(DataParser):
 
             if self.config.include_mono_prior:
                 assert meta["has_mono_prior"]
+
+                if self.config.use_gt_or_omnidata_maps.lower() == 'gt':
+                    path_mono_depth = frame["mono_depth_path"]
+                    path_mono_normal = frame["mono_normal_path"]
+                elif self.config.use_gt_or_omnidata_maps.lower() == "omnidata":
+                    path_mono_depth = frame["mono_depth_path"]
+                    path_mono_depth = path_mono_depth.replace("gt", "omnidata")
+                    path_mono_normal = frame["mono_normal_path"]
+                    path_mono_normal = path_mono_normal.replace("gt", "omnidata")
+
                 # load mono depth
-                depth = np.load(self.config.data / frame["mono_depth_path"])
+                depth = np.load(self.config.data / path_mono_depth)
                 assert len(depth.shape) == 2 and depth.shape[0] > 99 and depth.shape[1] > 99
 
                 # Due to the weird convention of the depth (real_depth_gt = depth_image_gt * 50 + 0.5) depths can be smaller than 0 here
@@ -252,7 +264,7 @@ class SDFStudio(DataParser):
                 depth_images.append(torch.from_numpy(depth).float())
 
                 # load mono normal
-                normal = np.load(self.config.data / frame["mono_normal_path"])
+                normal = np.load(self.config.data / path_mono_normal)
 
                 assert np.min(normal) >= 0 and np.max(normal) <= 1
 
