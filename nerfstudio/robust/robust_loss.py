@@ -18,6 +18,7 @@ class RobustLoss:
     """
 
     @staticmethod
+    @torch.no_grad()
     def maybe_get_loss_masks_from_distractor_mask(loss_collection: LossCollectionUnordered, batch: Dict,
                                                   config: "SurfaceModelConfig") -> None:
         if "rgb_distracted_mask" in batch:
@@ -36,8 +37,8 @@ class RobustLoss:
                 assert config.rgb_mask_from_percentile_of_rgb_loss == -1.0
                 loss_collection.normal_mask[rgb_distracted_mask] = 0
 
-
     @classmethod
+    @torch.no_grad()
     def maybe_apply_kernel_to_masks(cls, loss_collection: LossCollectionDenseSpatial,
                                     config: "SurfaceModelConfig", device: torch.device) -> None:
 
@@ -76,6 +77,7 @@ class RobustLoss:
             loss_collection.apply_function_to_masks(function=apply_kernel)
 
     @staticmethod
+    @torch.no_grad()
     def _classify_patches_a(loss_collection: LossCollectionDenseSpatial, device: torch.device):
         outer_neighbourhood_kernel_size = 15
         outer_neighbourhood_kernel = torch.ones(
@@ -118,6 +120,7 @@ class RobustLoss:
         loss_collection.apply_function_to_masks(function=apply_classify_patches)
 
     @classmethod
+    @torch.no_grad()
     def maybe_classify_patches(cls, loss_collection: LossCollectionDenseSpatial,
                                config: "SurfaceModelConfig", device: torch.device) -> None:
 

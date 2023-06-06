@@ -17,6 +17,7 @@ class RobustLossMaskCreator:
     Create masks based on pixelwise losses.
     """
 
+    @torch.no_grad()
     def _create_loss_mask_from_loss(self, loss: TensorType, percentile: float) -> torch.Tensor:
         assert 0 <= percentile <= 100
         # print_tensor("loss", loss)
@@ -41,6 +42,7 @@ class RobustLossMaskCreator:
 
         return mask
 
+    @torch.no_grad()
     def maybe_create_loss_masks_from_losses(self, loss_collection: LossCollectionUnordered,
                                             config: "SurfaceModelConfig") -> None:
 
