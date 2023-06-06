@@ -145,6 +145,8 @@ class SurfaceModelConfig(ModelConfig):
 
     robust_loss_kernel_name: str = "NoKernel"
 
+    robust_loss_classify_patches_mode: str = "Off"
+
 
 class SurfaceModel(Model):
     """Base surface model
@@ -437,7 +439,7 @@ class SurfaceModel(Model):
         assert isinstance(loss_collection, LossCollectionUnordered)
         RobustLoss.maybe_create_loss_masks_from_losses(loss_collection=loss_collection, config=self.config)
 
-        if self.config.robust_loss_kernel_name != "NoKernel":
+        if self.config.robust_loss_kernel_name != "NoKernel" or config.robust_loss_classify_patches_mode != "Off":
             assert batch.get("image_is_spatial_and_contiguous", None) is True
             loss_collection: LossCollectionDenseSpatial = loss_collection.make_into_dense_spatial(
                 device=self.device)
@@ -447,6 +449,12 @@ class SurfaceModel(Model):
 
             RobustLoss.maybe_apply_kernel_to_masks(loss_collection=loss_collection, config=self.config,
                                                    device=self.device)
+
+            if all_loss_collection_steps is not None:
+                all_loss_collection_steps["before_classify_patches"] = copy.deepcopy(loss_collection)
+
+            RobustLoss.maybe_classify_patches(loss_collection=loss_collection, config=self.config,
+                                              device=self.device)
 
             loss_collection: LossCollectionUnordered = loss_collection.make_into_unordered()
 
@@ -728,6 +736,12 @@ class SurfaceModel(Model):
             self.log_pixelwise_loss_images_from_loss_collection(
                 sparse_spatial_loss_collection_by_name["before_kernel"], step,
                 log_group_names=[log_group_name, "10 before kernel"],
+                log_losses=False, log_masks=True, log_loss_collection_ids=False)
+
+        if "before_classify_patches" in sparse_spatial_loss_collection_by_name:
+            self.log_pixelwise_loss_images_from_loss_collection(
+                sparse_spatial_loss_collection_by_name["before_classify_patches"], step,
+                log_group_names=[log_group_name, "20 before classify_patches"],
                 log_losses=False, log_masks=True, log_loss_collection_ids=False)
 
         loss_collection_sparse_spatial_final = sparse_spatial_loss_collection_by_name["final"]

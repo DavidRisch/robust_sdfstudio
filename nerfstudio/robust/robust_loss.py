@@ -99,6 +99,61 @@ class RobustLoss:
 
             loss_collection.apply_function_to_masks(function=apply_kernel)
 
+    @staticmethod
+    def _classify_patches_a(loss_collection: LossCollectionDenseSpatial, device: torch.device):
+        outer_neighbourhood_kernel_size = 15
+        outer_neighbourhood_kernel = torch.ones(
+            (1, 1, outer_neighbourhood_kernel_size, outer_neighbourhood_kernel_size), dtype=torch.float32,
+            device=device)
+        # normalize so that the sum is 1
+        outer_neighbourhood_kernel /= outer_neighbourhood_kernel_size ** 2
+
+        inner_neighbourhood_kernel_size = 3
+        inner_neighbourhood_kernel = torch.ones(
+            (1, 1, inner_neighbourhood_kernel_size, inner_neighbourhood_kernel_size),
+            dtype=torch.float32, device=device)
+        # don't normalize (used to dilate mask)
+
+        def apply_classify_patches(old_value):
+            print_tensor("apply_classify_patches old_value", old_value)
+
+            width, height = old_value.shape[1], old_value.shape[0]
+            old_value = old_value.reshape((1, 1, height, width))
+
+            # modified_value contains values that are 0 (outlier) or 1 (inlier)
+            modified_value = F.conv2d(input=old_value, weight=outer_neighbourhood_kernel, stride=1, padding="same")
+            # modified_value contains values in the range [0,1] (proportion of inliers in a large neighborhood)
+            print_tensor("apply_classify_patches after first conv2d", modified_value)
+            modified_value = (modified_value >= 0.6).float()
+            # modified_value contains values that are 0 or 1 (large neighborhood contains enough inliers)
+
+            # https://stackoverflow.com/a/56237377
+            modified_value = torch.nn.functional.conv2d(modified_value, inner_neighbourhood_kernel, stride=1,
+                                                        padding="same")
+            # modified_value contains values that are 0, 1, 2, ...
+            modified_value = torch.clamp(modified_value, 0, 1)
+            # modified_value contains values that are 0 (outlier) or 1 (inlier)
+
+            modified_value = modified_value.reshape((height, width))
+            print_tensor("apply_classify_patches modified_value", modified_value)
+
+            return modified_value
+
+        loss_collection.apply_function_to_masks(function=apply_classify_patches)
+
+    @classmethod
+    def maybe_classify_patches(cls, loss_collection: LossCollectionDenseSpatial,
+                               config: "SurfaceModelConfig", device: torch.device) -> None:
+
+        if config.robust_loss_classify_patches_mode == "Off":
+            return
+
+        if config.robust_loss_classify_patches_mode == "A":
+            cls._classify_patches_a(loss_collection=loss_collection, device=device)
+        else:
+            raise RuntimeError(
+                "Unknown value for robust_loss_classify_patches_mode: " + config.robust_loss_classify_patches_mode)
+
     @classmethod
     def maybe_create_loss_masks_from_losses(cls, loss_collection: LossCollectionUnordered,
                                             config: "SurfaceModelConfig") -> None:
