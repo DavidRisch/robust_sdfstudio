@@ -75,6 +75,7 @@ from nerfstudio.robust.print_utils import print_tensor_dict, print_tensor
 from nerfstudio.robust.robust_loss import RobustLoss
 from nerfstudio.robust.robust_loss_mask_creator import RobustLossMaskCreator
 from nerfstudio.robust.log_utils import LogUtils
+from nerfstudio.robust.mask_evaluator import MaskEvaluator
 
 
 @dataclass
@@ -635,13 +636,9 @@ class SurfaceModel(Model):
         # print_tensor_dict("log_pixelwise_loss batch", batch)
 
         relevant_key_of_batch = ["pixel_coordinates_x", "pixel_coordinates_y", "image"]
-        if "depth" in batch:
-            relevant_key_of_batch.append("depth")
-        if "normal" in batch:
-            relevant_key_of_batch.append("normal")
-
-        if "rgb_distracted_mask" in batch:
-            relevant_key_of_batch.append("rgb_distracted_mask")
+        for key in ["depth", "normal", "rgb_distracted_mask", "depth_distracted_mask", "normal_distracted_mask"]:
+            if key in batch:
+                relevant_key_of_batch.append(key)
 
         # flatten image dimensions (height, width) for easier spliting later
         ray_bundle_flattened = ray_bundle.flatten()
@@ -708,10 +705,13 @@ class SurfaceModel(Model):
                 loss_collection.to_device_inplace(device="cpu")
                 loss_collections_by_name[name].append((loss_collection))
 
+        unordered_loss_collection_by_name: Dict[str, LossCollectionSparseSpatial] = {}
         sparse_spatial_loss_collection_by_name: Dict[str, LossCollectionSparseSpatial] = {}
 
         for name, loss_collections in loss_collections_by_name.items():
             combined_loss_collection = LossCollectionUnordered.from_combination(loss_collections)
+
+            unordered_loss_collection_by_name[name] = combined_loss_collection
 
             # loss_collection_dense_spatial: LossCollectionDenseSpatial = combined_loss_collection.make_into_dense_spatial(
             #     device=torch.device("cpu"))
@@ -750,6 +750,20 @@ class SurfaceModel(Model):
                 log_losses=False, log_masks=True, log_loss_collection_ids=False)
 
         loss_collection_sparse_spatial_final = sparse_spatial_loss_collection_by_name["final"]
+
+        if "rgb_distracted_mask" in batch:
+            if len(batch["rgb_distracted_mask"].shape) == 1:
+                # batch is unordered
+                mask_evaluator_loss_collection = unordered_loss_collection_by_name["final"]
+            elif len(batch["rgb_distracted_mask"].shape) == 2:
+                # batch is unordered
+                mask_evaluator_loss_collection = loss_collection_sparse_spatial_final
+            else:
+                assert False
+
+            # TODO also run this during training?
+            MaskEvaluator.log_all_comparisons(loss_collection=mask_evaluator_loss_collection, batch=batch,
+                                              log_group_names=[log_group_name, "70 masks"], step=step)
 
         self.log_pixelwise_loss_images_from_loss_collection(
             loss_collection_sparse_spatial_final, step,
