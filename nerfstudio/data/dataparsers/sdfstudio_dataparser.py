@@ -137,10 +137,14 @@ def get_sparse_sfm_points(image_idx: int, sfm_points):
     return {"sparse_sfm_points": sparse_sfm_points}
 
 
-def get_rgb_distracted_masks(image_idx: int, rgb_distracted_masks: List[np.ndarray]):
+def get_rgb_distracted_masks(image_idx: int, rgb_distracted_masks: List[np.ndarray],
+                             depth_distracted_masks: List[np.ndarray], normal_distracted_masks: List[np.ndarray]):
     rgb_distracted_mask = rgb_distracted_masks[image_idx]
+    depth_distracted_mask = depth_distracted_masks[image_idx]
+    normal_distracted_mask = normal_distracted_masks[image_idx]
 
-    return {"rgb_distracted_mask": rgb_distracted_mask}
+    return {"rgb_distracted_mask": rgb_distracted_mask, "depth_distracted_mask": depth_distracted_mask,
+            "normal_distracted_mask": normal_distracted_mask}
 
 
 @dataclass
@@ -214,6 +218,8 @@ class SDFStudio(DataParser):
         foreground_mask_images = []
         sfm_points = []
         rgb_distracted_masks = []
+        depth_distracted_masks = []
+        normal_distracted_masks = []
         fx = []
         fy = []
         cx = []
@@ -313,16 +319,38 @@ class SDFStudio(DataParser):
                 sfm_points_view = np.loadtxt(self.config.data / frame["sfm_sparse_points_view"])
                 sfm_points.append(torch.from_numpy(sfm_points_view).float())
 
-            distracted_mask_path = self.config.data / (
+            rgb_distracted_mask_path = self.config.data / (
                 frame["rgb_path"].replace("_rgb.png", "_rgb_distracted_mask.png"))
-            if distracted_mask_path.is_file():
+            if rgb_distracted_mask_path.is_file():
                 # print("distracted_mask_path: ", distracted_mask_path)
-                mask = cv2.imread(str(distracted_mask_path))
+                mask = cv2.imread(str(rgb_distracted_mask_path))
                 # print("mask", mask.shape, rgb_distracted_masks)
                 mask = (mask[:, :, 0] != 0)
                 # print("mask", mask.shape, rgb_distracted_masks)
                 mask = torch.from_numpy(mask)
                 rgb_distracted_masks.append(mask)
+
+            depth_distracted_mask_path = self.config.data / (
+                frame["mono_depth_path"].replace(".npy", "_distracted_mask.png"))
+            if depth_distracted_mask_path.is_file():
+                # print("distracted_mask_path: ", distracted_mask_path)
+                mask = cv2.imread(str(depth_distracted_mask_path))
+                # print("mask", mask.shape, depth_distracted_masks)
+                mask = (mask[:, :, 0] != 0)
+                # print("mask", mask.shape, depth_distracted_masks)
+                mask = torch.from_numpy(mask)
+                depth_distracted_masks.append(mask)
+
+            normal_distracted_mask_path = self.config.data / (
+                frame["mono_normal_path"].replace(".npy", "_distracted_mask.png"))
+            if normal_distracted_mask_path.is_file():
+                # print("distracted_mask_path: ", distracted_mask_path)
+                mask = cv2.imread(str(normal_distracted_mask_path))
+                # print("mask", mask.shape, normal_distracted_masks)
+                mask = (mask[:, :, 0] != 0)
+                # print("mask", mask.shape, normal_distracted_masks)
+                mask = torch.from_numpy(mask)
+                normal_distracted_masks.append(mask)
 
         fx = torch.stack(fx)
         fy = torch.stack(fy)
@@ -427,11 +455,15 @@ class SDFStudio(DataParser):
                 },
             }
 
-        if len(rgb_distracted_masks) > 0:
+        if len(rgb_distracted_masks) > 0 or len(depth_distracted_masks) > 0 or len(normal_distracted_masks) > 0:
             print(f"loaded {len(rgb_distracted_masks)} rgb_distracted_masks")
+            print(f"loaded {len(depth_distracted_masks)} depth_distracted_masks")
+            print(f"loaded {len(normal_distracted_masks)} normal_distracted_masks")
             additional_inputs_dict["rgb_distracted_masks"] = {
                 "func": get_rgb_distracted_masks,
-                "kwargs": {"rgb_distracted_masks": rgb_distracted_masks},
+                "kwargs": {"rgb_distracted_masks": rgb_distracted_masks,
+                           "depth_distracted_masks": depth_distracted_masks,
+                           "normal_distracted_masks": normal_distracted_masks},
             }
 
         dataparser_outputs = DataparserOutputs(
