@@ -19,6 +19,7 @@ Implementation of Base surface model.
 from __future__ import annotations
 
 import copy
+import os.path
 from abc import abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Type, Optional
@@ -32,6 +33,14 @@ from torchmetrics.functional import structural_similarity_index_measure
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 from torchtyping import TensorType
 from typing_extensions import Literal
+
+import open3d as o3d
+import numpy as np
+from pathlib import Path
+from nerfstudio.exporter.exporter_utils import generate_point_cloud
+from nerfstudio.utils.eval_utils import eval_setup
+from nerfstudio.configs.base_config import Config
+import sys
 
 from nerfstudio.cameras.rays import RayBundle
 from nerfstudio.field_components.encodings import NeRFEncoding
@@ -147,6 +156,12 @@ class SurfaceModelConfig(ModelConfig):
     robust_loss_kernel_name: str = "NoKernel"
 
     robust_loss_classify_patches_mode: str = "Off"
+
+    load_gt_point_cloud: str = None
+    """Path to load ground truth point cloud"""
+
+    steps_per_eval_chamfer_dist: int = 1000
+    """Number of steps between evaluating chamfer distance metric"""
 
 
 class SurfaceModel(Model):
@@ -545,8 +560,72 @@ class SurfaceModel(Model):
         metrics_dict["psnr"] = self.psnr(outputs["rgb"], image)
         return metrics_dict
 
+    def calculate_chamfer(self):
+        input_path_user = self.config.load_gt_point_cloud
+        if os.path.isfile(input_path_user):
+            _, file_extension = os.path.splitext(input_path_user)
+            if file_extension.lower() == '.ply':
+                gt_pc_path = input_path_user
+            else:
+                raise ValueError("Not a valid path or file selected")
+        elif os.path.isdir(input_path_user):
+            for filename in os.listdir(input_path_user):
+                if filename.endswith('.ply'):
+                    filename_ply = filename
+                    break
+            else:
+                raise ValueError("Not a valid path or file selected")
+            gt_pc_path = os.path.join(self.config.load_gt_point_cloud + '/' + filename_ply)
+        else:
+            raise ValueError("Not a valid path or file selected")
+
+        pcd_gt = o3d.io.read_point_cloud(gt_pc_path)
+
+        pcd_gt_np = np.asarray(pcd_gt.points)
+
+        max_bound_pcd_gt = np.max(pcd_gt_np, axis=0)
+        min_bound_pcd_gt = np.min(pcd_gt_np, axis=0)
+        range_pcd_gt = max_bound_pcd_gt - min_bound_pcd_gt
+        pcd_gt_up = (pcd_gt.points - min_bound_pcd_gt) / range_pcd_gt
+
+        pcd_gt_norm = o3d.utility.Vector3dVector(pcd_gt_up)
+        pcd_gt_norm = o3d.geometry.PointCloud(pcd_gt_norm)
+
+        config_path = Config.config_path[0]
+        _, pipeline, _ = eval_setup(Path(config_path))
+        pcd_recon = generate_point_cloud(
+            pipeline=pipeline,
+            num_points=1000000,
+            remove_outliers=True,
+            estimate_normals=False,
+            rgb_output_name="rgb",
+            depth_output_name="depth",
+            normal_output_name=None,
+            use_bounding_box=False,
+            bounding_box_min=(-1, -1, -1),
+            bounding_box_max=(1, 1, 1),
+            std_ratio=10.0,
+        )
+        pcd_recon_np = np.asarray(pcd_recon.points)
+
+        max_bound_pcd_train = np.max(pcd_recon_np, axis=0)
+        min_bound_pcd_train = np.min(pcd_recon_np, axis=0)
+        range_pcd_train = max_bound_pcd_train - min_bound_pcd_train
+        pcd_recon_up = (pcd_recon.points - min_bound_pcd_train) / range_pcd_train
+        pcd_recon_norm = o3d.utility.Vector3dVector(pcd_recon_up)
+        pcd_recon_norm = o3d.geometry.PointCloud(pcd_recon_norm)
+
+        distance1 = pcd_gt_norm.compute_point_cloud_distance(pcd_recon_norm)
+        distance2 = pcd_recon_norm.compute_point_cloud_distance(pcd_gt_norm)
+
+        chamfer = np.mean(distance1) + np.mean(distance2)
+        #sys.stdout.write('\x1b[1A')
+        #sys.stdout.write('\x1b[2K')
+
+        return chamfer
+
     def get_image_metrics_and_images(
-        self, outputs: Dict[str, torch.Tensor], batch: Dict[str, torch.Tensor]
+        self, outputs: Dict[str, torch.Tensor], batch: Dict[str, torch.Tensor], step
     ) -> Tuple[Dict[str, float], Dict[str, torch.Tensor]]:
 
         image = batch["image"].to(self.device)
@@ -611,6 +690,10 @@ class SurfaceModel(Model):
         # all of these metrics will be logged as scalars
         metrics_dict = {"psnr": float(psnr.item()), "ssim": float(ssim)}  # type: ignore
         metrics_dict["lpips"] = float(lpips)
+
+        if self.config.load_gt_point_cloud is not None and step % self.config.steps_per_eval_chamfer_dist == 0:
+            chamfer = self.calculate_chamfer()
+            metrics_dict["chamfer"] = float(chamfer)
 
         return metrics_dict, images_dict
 

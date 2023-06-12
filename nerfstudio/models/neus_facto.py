@@ -194,9 +194,9 @@ class NeuSFactoModel(NeuSModel):
         return loss_dict
 
     def get_image_metrics_and_images(
-        self, outputs: Dict[str, torch.Tensor], batch: Dict[str, torch.Tensor]
+        self, outputs: Dict[str, torch.Tensor], batch: Dict[str, torch.Tensor], step
     ) -> Tuple[Dict[str, float], Dict[str, torch.Tensor]]:
-        metrics_dict, images_dict = super().get_image_metrics_and_images(outputs, batch)
+        metrics_dict, images_dict = super().get_image_metrics_and_images(outputs, batch, step)
         for i in range(self.config.num_proposal_iterations):
             key = f"prop_depth_{i}"
             prop_depth_i = colormaps.apply_depth_colormap(
