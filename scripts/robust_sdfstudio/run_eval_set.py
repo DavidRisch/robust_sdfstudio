@@ -9,7 +9,7 @@ import subprocess
 
 dataset_base_path = os.environ["DATASET_BASE_DIR"]
 print(f"{dataset_base_path=}")
-dataset_name = "distracted_dataset_v6"
+dataset_name = "distracted_dataset_v7"
 print(f"{dataset_name=}")
 own_dataset_path = os.path.join(dataset_base_path, dataset_name)
 print(f"{own_dataset_path=}")
@@ -20,23 +20,28 @@ train_script_path = os.path.join(repo_root, "scripts/train.py")
 print(f"{train_script_path=}")
 
 # this should be incremented whenever anything is changed anywhere which could change the results
-eval_set_version = 5
+eval_set_version = 6
 
 
 class RunConfig:
     def __init__(self, name: str, dataset_kind: str, resolution: int,
+                 use_gt_or_omnidata_maps: str,
                  sample_large_image_patches: bool,
                  use_gt_distracted_mask: bool = False,
                  robust_loss_kernel_name: str = "NoKernel",
                  simple_percentile: Optional[float] = None,
+                 robust_loss_classify_patches_mode: str = "Off",
                  ):
         self.name = name
         self.dataset_kind = dataset_kind
         self.resolution = resolution
+        self.use_gt_or_omnidata_maps = use_gt_or_omnidata_maps
         self.sample_large_image_patches = sample_large_image_patches
         self.use_gt_distracted_mask = use_gt_distracted_mask
         self.robust_loss_kernel_name = robust_loss_kernel_name
         self.simple_percentile = simple_percentile
+        self.robust_loss_kernel_name = robust_loss_kernel_name
+        self.robust_loss_classify_patches_mode = robust_loss_classify_patches_mode
 
 
 def prepare_run(run_config: RunConfig) -> List[str]:
@@ -51,16 +56,17 @@ def prepare_run(run_config: RunConfig) -> List[str]:
         "--pipeline.model.sdf-field.inside-outside", "False",
         "--vis", "wandb",
         "--experiment-name", experiment_name,
-        #"--logging.local-writer.max-log-size", "0",
+        # "--logging.local-writer.max-log-size", "0",
         "--pipeline.datamanager.train_num_rays_per_batch", str(4096),
         "--pipeline.datamanager.eval_num_rays_per_batch", str(4096),
-        "--trainer.steps-per-eval-image", str(250),
+        "--trainer.steps-per-eval-image", str(100),
         "--trainer.steps-per-save", str(1000),
         "--trainer.max_num_iterations", str(5001),
         "--pipeline.model.mono_depth_loss_mult", str(0.05),
         "--pipeline.model.mono_normal_loss_mult", str(0.05),
         "--pipeline.datamanager.sample_large_image_patches", str(run_config.sample_large_image_patches),
         "--pipeline.model.robust_loss_kernel_name", run_config.robust_loss_kernel_name,
+        "--pipeline.model.robust_loss_classify_patches_mode", run_config.robust_loss_classify_patches_mode,
     ]
 
     if run_config.use_gt_distracted_mask:
@@ -83,6 +89,7 @@ def prepare_run(run_config: RunConfig) -> List[str]:
         "--include_mono_prior", "True",
         "--include_foreground_mask", "False",
         "--max-train-image-count", str(25),
+        "--use_gt_or_omnidata_maps", run_config.use_gt_or_omnidata_maps
     ]
 
     # print("arguments_list", arguments)
@@ -108,6 +115,7 @@ def main():
             run_configs.append(RunConfig("baseline",
                                          dataset_kind=dataset_kind,
                                          resolution=resolution,
+                                         use_gt_or_omnidata_maps="gt",
                                          sample_large_image_patches=False))
 
     for dataset_kind in ["distracted"]:
@@ -115,6 +123,7 @@ def main():
             run_configs.append(RunConfig("gtDistractedMask",
                                          dataset_kind=dataset_kind,
                                          resolution=resolution,
+                                         use_gt_or_omnidata_maps="gt",
                                          sample_large_image_patches=False,
                                          use_gt_distracted_mask=True))
 
@@ -123,6 +132,7 @@ def main():
             run_configs.append(RunConfig("simplePercentile",
                                          dataset_kind=dataset_kind,
                                          resolution=resolution,
+                                         use_gt_or_omnidata_maps="gt",
                                          sample_large_image_patches=False,
                                          simple_percentile=90.0))
 
@@ -131,8 +141,20 @@ def main():
             run_configs.append(RunConfig("kernel",
                                          dataset_kind=dataset_kind,
                                          resolution=resolution,
+                                         use_gt_or_omnidata_maps="gt",
                                          sample_large_image_patches=True,
                                          robust_loss_kernel_name="Box_5x5",
+                                         simple_percentile=90.0))
+
+    for dataset_kind in ["distracted"]:
+        for resolution in [128]:
+            run_configs.append(RunConfig("kernelPatchesA",
+                                         dataset_kind=dataset_kind,
+                                         resolution=resolution,
+                                         use_gt_or_omnidata_maps="gt",
+                                         sample_large_image_patches=True,
+                                         robust_loss_kernel_name="Box_5x5",
+                                         robust_loss_classify_patches_mode="A",
                                          simple_percentile=90.0))
 
     run_arguments: List[List[str]] = []
@@ -144,7 +166,7 @@ def main():
         (index, arguments) for (index, arguments) in enumerate(run_arguments)
     ]
 
-    run_arguments_with_index = run_arguments_with_index[2:]
+    # run_arguments_with_index = run_arguments_with_index[3:]
 
     for index, arguments in run_arguments_with_index:
         print()
