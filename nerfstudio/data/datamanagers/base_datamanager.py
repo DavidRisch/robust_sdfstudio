@@ -475,6 +475,9 @@ class VanillaDataManager(DataManager):  # pylint: disable=abstract-method
         batch = self.eval_pixel_sampler.sample(image_batch)
         ray_indices = batch["indices"]
         ray_bundle = self.eval_ray_generator(ray_indices)
+
+        batch["step"] = step
+
         return ray_bundle, batch
 
     def next_eval_image(self, step: int) -> Tuple[int, RayBundle, Dict]:
