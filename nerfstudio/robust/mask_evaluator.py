@@ -125,29 +125,29 @@ class MaskEvaluator:
                             step: int) -> None:
         # print("log_all_comparisons", log_group_names, batch.keys())
         if "rgb_distracted_mask" in batch:
-            result = cls.compare(
+            result_rgb = cls.compare(
                 predicted_clean_mask=loss_collection.rgb_mask,  # type: ignore
                 gt_clean_mask=torch.logical_not(batch["rgb_distracted_mask"]),  # type: ignore
             )
-            result.add_to_global_writer(loss_type_name="rgb",
-                                        log_group_names=log_group_names,
-                                        log_name_index=0,
-                                        step=step)
+            result_rgb.add_to_global_writer(loss_type_name="rgb",
+                                            log_group_names=log_group_names,
+                                            log_name_index=0,
+                                            step=step)
 
-            cls.compare(
+            result_depth = cls.compare(
                 predicted_clean_mask=loss_collection.depth_mask,  # type: ignore
                 gt_clean_mask=torch.logical_not(batch["depth_distracted_mask"]),  # type: ignore
             )
-            result.add_to_global_writer(loss_type_name="depth",
-                                        log_group_names=log_group_names,
-                                        log_name_index=1,
-                                        step=step)
+            result_depth.add_to_global_writer(loss_type_name="depth",
+                                              log_group_names=log_group_names,
+                                              log_name_index=1,
+                                              step=step)
 
-            cls.compare(
+            result_normal = cls.compare(
                 predicted_clean_mask=loss_collection.normal_mask,  # type: ignore
                 gt_clean_mask=torch.logical_not(batch["normal_distracted_mask"]),  # type: ignore
             )
-            result.add_to_global_writer(loss_type_name="normal",
-                                        log_group_names=log_group_names,
-                                        log_name_index=2,
-                                        step=step)
+            result_normal.add_to_global_writer(loss_type_name="normal",
+                                               log_group_names=log_group_names,
+                                               log_name_index=2,
+                                               step=step)
