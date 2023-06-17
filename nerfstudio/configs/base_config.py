@@ -228,6 +228,7 @@ class Config(PrintableConfig):
     """Which visualizer to use."""
     data: Optional[Path] = None
     """Alias for --pipeline.datamanager.dataparser.data"""
+    config_path = []
 
     def is_viewer_enabled(self) -> bool:
         """Checks if a viewer is enabled."""
@@ -274,5 +275,6 @@ class Config(PrintableConfig):
         assert base_dir is not None
         base_dir.mkdir(parents=True, exist_ok=True)
         config_yaml_path = base_dir / "config.yml"
+        self.config_path.append(config_yaml_path)
         CONSOLE.log(f"Saving config to: {config_yaml_path}")
         config_yaml_path.write_text(yaml.dump(self), "utf8")
