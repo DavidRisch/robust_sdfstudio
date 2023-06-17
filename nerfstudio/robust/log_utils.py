@@ -25,13 +25,16 @@ class LogUtils:
             blank_mask = torch.isnan(image)
         elif image.dtype == torch.long:
             blank_mask = (image == -1)
+        elif image.dtype == torch.bool:
+            blank_mask = None
         else:
             assert False, image.dtype
 
         # print_tensor(f"log_with_colormap {log_group_names} {name} image", image)
         # print_tensor(f"log_with_colormap {log_group_names} {name} blank_mask", blank_mask)
         image_without_blanks = torch.clone(image)
-        image_without_blanks[blank_mask] = 0
+        if blank_mask is not None:
+            image_without_blanks[blank_mask] = 0
 
         if cmap == "black_and_white":
             # print_tensor("before bool colormap image", image)
@@ -45,9 +48,11 @@ class LogUtils:
                 normalized_image = image_without_blanks
 
             colored_loss = colormaps.apply_colormap(normalized_image, cmap=cmap)
-        blank_color = torch.tensor([0.6, 0.6, 0.6], dtype=colored_loss.dtype)
 
-        blank_mask = blank_mask.reshape(blank_mask.shape[:2])
-        colored_loss[blank_mask] = blank_color
+        if blank_mask is not None:
+            blank_color = torch.tensor([0.6, 0.6, 0.6], dtype=colored_loss.dtype)
+
+            blank_mask = blank_mask.reshape(blank_mask.shape[:2])
+            colored_loss[blank_mask] = blank_color
         # print_tensor(f"log_with_colormap {log_group_names} {name} colored_loss", colored_loss)
         writer.put_image(name="/".join(log_group_names) + "/" + name, image=colored_loss, step=step)
