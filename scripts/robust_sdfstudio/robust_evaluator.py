@@ -15,6 +15,7 @@ import torch
 import tyro
 from rich.console import Console
 
+from nerfstudio.pipelines.configuration_setter import ConfigurationsSetter
 from nerfstudio.robust.output_collection import OutputCollection
 from nerfstudio.robust.print_utils import print_tensor
 from nerfstudio.utils.eval_utils import eval_setup
@@ -38,12 +39,22 @@ class RobustEvaluator:
 
     max_image_count: Optional[int] = None
 
+    def save_images(self, output_collection: OutputCollection, experiment_output_images_directory_path: Path,
+                    suffix: str):
+        for name, image in output_collection.images_by_name.items():
+            # print_tensor(name, image)
+            filename = f"{name}_{suffix}.png"
+            filename = filename.replace("/", "|")
+            # print(f"{filename=}")
+            converter_image = (image.cpu().numpy() * 255.0).astype(np.uint8)[..., ::-1]
+            cv2.imwrite(str(experiment_output_images_directory_path / Path(filename)), converter_image)
+
     def main(self) -> None:
         def override_config_func(current_config):
             current_config.pipeline.datamanager.eval_dataset_split_name = "train_all"
 
-        loaded_config, pipeline, checkpoint_path = eval_setup(config_path=self.load_config,
-                                                              override_config_func=override_config_func)
+        loaded_config, loaded_pipeline, checkpoint_path = eval_setup(config_path=self.load_config,
+                                                                     override_config_func=override_config_func)
         # print("loaded_config", loaded_config)
 
         experiment_output_directory_path = self.output_directory_path / loaded_config.experiment_name
@@ -59,39 +70,79 @@ class RobustEvaluator:
             "checkpoint": str(checkpoint_path),
         }
 
-        output_dict["plot_suffix"] = "default"
+        configurations_setters = []
+        configurations_setters.append(ConfigurationsSetter("default", lambda pipeline: None))
 
-        output_collection = OutputCollection()
+        def percentile_25(pipeline):
+            pipeline.model.config.rgb_mask_from_percentile_of_rgb_loss = 25
+            pipeline.model.config.normal_mask_from_percentile_of_normal_loss = 25
+            pipeline.model.config.depth_mask_from_percentile_of_depth_loss = 25
 
-        pipeline.robust_get_average_eval_image_metrics(max_image_count=self.max_image_count,
-                                                       output_collection=output_collection)
+        configurations_setters.append(ConfigurationsSetter("percentile_25", percentile_25))
 
-        for loss_type_name, mask_evaluator_results in output_collection.mask_evaluator_results_by_type.items():
-            # print("****", loss_type_name, len(mask_evaluator_results))
-            true_cleans_list = []
-            false_cleans_list = []
-            true_distractors_list = []
-            false_distractors_list = []
+        def percentile_50(pipeline):
+            pipeline.model.config.rgb_mask_from_percentile_of_rgb_loss = 50
+            pipeline.model.config.normal_mask_from_percentile_of_normal_loss = 50
+            pipeline.model.config.depth_mask_from_percentile_of_depth_loss = 50
 
-            for mask_evaluator_result in mask_evaluator_results:
-                true_cleans_list.append(mask_evaluator_result.true_cleans)
-                false_cleans_list.append(mask_evaluator_result.false_cleans)
-                true_distractors_list.append(mask_evaluator_result.true_distractors)
-                false_distractors_list.append(mask_evaluator_result.false_distractors)
+        configurations_setters.append(ConfigurationsSetter("percentile_50", percentile_50))
 
-            print(f"{true_cleans_list=}")
-            print(f"{false_cleans_list=}")
-            print(f"{true_distractors_list=}")
-            print(f"{false_distractors_list=}")
+        def percentile_95(pipeline):
+            pipeline.model.config.rgb_mask_from_percentile_of_rgb_loss = 95
+            pipeline.model.config.normal_mask_from_percentile_of_normal_loss = 95
+            pipeline.model.config.depth_mask_from_percentile_of_depth_loss = 95
 
-            output_dict["mask_evaluator_results"] = {
-                loss_type_name: {
+        configurations_setters.append(ConfigurationsSetter("percentile_95", percentile_95))
+
+        main_output_collection = OutputCollection()
+        output_collections_for_configurations = [
+            OutputCollection() for _ in range(len(configurations_setters))
+        ]
+
+        loaded_pipeline.robust_get_average_eval_image_metrics(
+            max_image_count=self.max_image_count,
+            main_output_collection=main_output_collection,
+            output_collections_for_configurations=output_collections_for_configurations,
+            configurations_setters=configurations_setters)
+
+        output_dict["configurations"] = {}
+        for configurations_setter, output_collection in zip(configurations_setters,
+                                                            output_collections_for_configurations):
+            print(f"Parsing output of configuration '{configurations_setter.name}'")
+            output_for_configuration = {
+                "plot_suffix": configurations_setter.name,
+                "mask_evaluator_results": {},
+            }
+            print("output_collection.mask_evaluator_results_by_type",
+                  output_collection.mask_evaluator_results_by_type.keys())
+            for loss_type_name, mask_evaluator_results in output_collection.mask_evaluator_results_by_type.items():
+                print("****", loss_type_name, len(mask_evaluator_results))
+                true_cleans_list = []
+                false_cleans_list = []
+                true_distractors_list = []
+                false_distractors_list = []
+
+                for mask_evaluator_result in mask_evaluator_results:
+                    true_cleans_list.append(mask_evaluator_result.true_cleans)
+                    false_cleans_list.append(mask_evaluator_result.false_cleans)
+                    true_distractors_list.append(mask_evaluator_result.true_distractors)
+                    false_distractors_list.append(mask_evaluator_result.false_distractors)
+
+                print(f"{true_cleans_list=}")
+                print(f"{false_cleans_list=}")
+                print(f"{true_distractors_list=}")
+                print(f"{false_distractors_list=}")
+
+                output_for_configuration["mask_evaluator_results"][loss_type_name] = {
                     "true_cleans_list": true_cleans_list,
                     "false_cleans_list": false_cleans_list,
                     "true_distractors_list": true_distractors_list,
                     "false_distractors_list": false_distractors_list,
+
                 }
-            }
+
+            print("qqqq", configurations_setter.name, output_for_configuration)
+            output_dict["configurations"][configurations_setter.name] = output_for_configuration
 
         # Get the output and define the names to save to
 
@@ -99,13 +150,14 @@ class RobustEvaluator:
         experiment_output_config_path.write_text(yaml.dump(output_dict), "utf8")
         CONSOLE.print(f"Saved results to: {experiment_output_config_path}")
 
-        for name, image in output_collection.images_by_name.items():
-            # print_tensor(name, image)
-            filename = f"{name}.png"
-            filename = filename.replace("/", "|")
-            # print(f"{filename=}")
-            converter_image = (image.cpu().numpy() * 255.0).astype(np.uint8)[..., ::-1]
-            cv2.imwrite(str(experiment_output_images_directory_path / Path(filename)), converter_image)
+        self.save_images(output_collection=main_output_collection,
+                         experiment_output_images_directory_path=experiment_output_images_directory_path,
+                         suffix="default")
+        for configurations_setter, output_collection in zip(configurations_setters,
+                                                            output_collections_for_configurations):
+            self.save_images(output_collection=output_collection,
+                             experiment_output_images_directory_path=experiment_output_images_directory_path,
+                             suffix=configurations_setter.name)
 
         CONSOLE.print(f"Saved rendering results to: {experiment_output_images_directory_path}")
 

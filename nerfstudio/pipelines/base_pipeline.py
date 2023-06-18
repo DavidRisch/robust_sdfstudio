@@ -47,6 +47,7 @@ from nerfstudio.data.datamanagers.base_datamanager import (
 )
 from nerfstudio.engine.callbacks import TrainingCallback, TrainingCallbackAttributes
 from nerfstudio.models.base_model import Model, ModelConfig
+from nerfstudio.pipelines.configuration_setter import ConfigurationsSetter
 from nerfstudio.robust.output_collection import OutputCollection
 from nerfstudio.utils import profiler, colormaps
 from nerfstudio.utils.images import BasicImages
@@ -428,8 +429,10 @@ class VanillaPipeline(Pipeline):
         return metrics_dict, images_dict_list
 
     @profiler.time_function
-    def robust_get_average_eval_image_metrics(self, output_collection: OutputCollection,
-                                              max_image_count: Optional[int] = None):
+    def robust_get_average_eval_image_metrics(self, main_output_collection: OutputCollection,
+                                              output_collections_for_configurations: List[OutputCollection],
+                                              configurations_setters: List[ConfigurationsSetter],
+                                              max_image_count: Optional[int] = None) -> None:
         self.eval()
 
         dataloader = self.datamanager.fixed_indices_eval_dataloader
@@ -452,11 +455,16 @@ class VanillaPipeline(Pipeline):
                 outputs = self.model.get_outputs_for_camera_ray_bundle(camera_ray_bundle)
                 metrics_dict, images_dict = self.model.get_image_metrics_and_images(outputs, batch)
                 for name, image in images_dict.items():
-                    output_collection.add_image(name=name, step=completed_image_count, image=image)
+                    main_output_collection.add_image(name=name, step=completed_image_count, image=image)
 
-                self.model.log_pixelwise_loss(ray_bundle=camera_ray_bundle, batch=batch, step=completed_image_count,
-                                              log_group_name="Train Images", image_width=image_width,
-                                              image_height=image_height, output_collection=output_collection)
+                for configurations_setter, output_collection in zip(configurations_setters,
+                                                                    output_collections_for_configurations):
+                    print(f"Setting configuration '{configurations_setter.name}'")
+                    configurations_setter.set_func(self)
+
+                    self.model.log_pixelwise_loss(ray_bundle=camera_ray_bundle, batch=batch, step=completed_image_count,
+                                                  log_group_name="Train Images", image_width=image_width,
+                                                  image_height=image_height, output_collection=output_collection)
 
                 progress.advance(task)
 
@@ -468,7 +476,6 @@ class VanillaPipeline(Pipeline):
             print("after loop")
 
         self.train()
-        return output_collection
 
     @profiler.time_function
     def get_visibility_mask(
