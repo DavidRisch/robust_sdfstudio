@@ -33,6 +33,7 @@ from nerfstudio.configs.config_utils import to_immutable_dict
 from nerfstudio.data.scene_box import SceneBox
 from nerfstudio.engine.callbacks import TrainingCallback, TrainingCallbackAttributes
 from nerfstudio.model_components.scene_colliders import NearFarCollider
+from nerfstudio.robust.output_collection import OutputCollection
 
 
 # Model related configs
@@ -215,5 +216,6 @@ class Model(nn.Module):
         self.load_state_dict(state)  # type: ignore
 
     def log_pixelwise_loss(self, ray_bundle: RayBundle, batch: Dict, step: int, log_group_name: str, image_width: int,
-                           image_height: int):
+                           image_height: int, output_collection: OutputCollection):
         print("WARNING: log_pixelwise_loss is not implemented for this model")
+        return {}

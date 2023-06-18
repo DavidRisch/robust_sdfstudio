@@ -47,6 +47,7 @@ from nerfstudio.data.datamanagers.base_datamanager import (
 )
 from nerfstudio.engine.callbacks import TrainingCallback, TrainingCallbackAttributes
 from nerfstudio.models.base_model import Model, ModelConfig
+from nerfstudio.robust.output_collection import OutputCollection
 from nerfstudio.utils import profiler, colormaps
 from nerfstudio.utils.images import BasicImages
 
@@ -319,7 +320,8 @@ class VanillaPipeline(Pipeline):
         image_width = batch["image"].shape[1]
         image_height = batch["image"].shape[0]
         self.model.log_pixelwise_loss(ray_bundle=camera_ray_bundle, batch=batch, step=step,
-                                      log_group_name="Eval Images", image_width=image_width, image_height=image_height)
+                                      log_group_name="Eval Images", image_width=image_width, image_height=image_height,
+                                      output_collection=OutputCollection())
 
         self.train()
         return metrics_dict, images_dict
@@ -340,7 +342,8 @@ class VanillaPipeline(Pipeline):
         image_width = batch["image"].shape[1]
         image_height = batch["image"].shape[0]
         self.model.log_pixelwise_loss(ray_bundle=camera_ray_bundle, batch=batch, step=step,
-                                      log_group_name="Train Images", image_width=image_width, image_height=image_height)
+                                      log_group_name="Train Images", image_width=image_width, image_height=image_height,
+                                      output_collection=OutputCollection())
 
         if "rgb_distracted_mask" in batch:
             rgb_distracted_mask = batch["rgb_distracted_mask"]
@@ -425,11 +428,54 @@ class VanillaPipeline(Pipeline):
         return metrics_dict, images_dict_list
 
     @profiler.time_function
+    def robust_get_average_eval_image_metrics(self, output_collection: OutputCollection,
+                                              max_image_count: Optional[int] = None):
+        self.eval()
+
+        dataloader = self.datamanager.fixed_indices_eval_dataloader
+
+        num_images = len(dataloader)
+        print("robust_get_average_eval_image_metrics num_images:", num_images)
+
+        with Progress(
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TimeElapsedColumn(),
+                MofNCompleteColumn(),
+                transient=True,
+        ) as progress:
+            completed_image_count = 0
+            task = progress.add_task("[green]Evaluating all eval images...", total=num_images)
+            for camera_ray_bundle, batch in dataloader:
+                image_height, image_width = camera_ray_bundle.shape
+
+                outputs = self.model.get_outputs_for_camera_ray_bundle(camera_ray_bundle)
+                metrics_dict, images_dict = self.model.get_image_metrics_and_images(outputs, batch)
+                for name, image in images_dict.items():
+                    output_collection.add_image(name=name, step=completed_image_count, image=image)
+
+                self.model.log_pixelwise_loss(ray_bundle=camera_ray_bundle, batch=batch, step=completed_image_count,
+                                              log_group_name="Train Images", image_width=image_width,
+                                              image_height=image_height, output_collection=output_collection)
+
+                progress.advance(task)
+
+                completed_image_count += 1
+                if max_image_count is not None and completed_image_count >= max_image_count:
+                    print(f"Reached max_image_count: {max_image_count}")
+                    break
+
+            print("after loop")
+
+        self.train()
+        return output_collection
+
+    @profiler.time_function
     def get_visibility_mask(
-        self,
-        coarse_grid_resolution: int = 512,
-        valid_points_thres: float = 0.005,
-        sub_sample_factor: int = 8,
+            self,
+            coarse_grid_resolution: int = 512,
+            valid_points_thres: float = 0.005,
+            sub_sample_factor: int = 8,
     ):
         """Iterate over all the images in the eval dataset and get the average.
 

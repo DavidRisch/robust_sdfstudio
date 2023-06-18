@@ -195,6 +195,17 @@ class SDFStudio(DataParser):
     config: SDFStudioDataParserConfig
 
     def _generate_dataparser_outputs(self, split="train"):  # pylint: disable=unused-argument,too-many-statements
+        max_image_count = -1
+
+        if split == "train":
+            max_image_count = self.config.max_train_image_count
+
+        if max_image_count != -1:
+            print(f"Only using {max_image_count} images from the {split} split.")
+
+        if split == "train_all":
+            split = "train"
+
         # load meta data
         meta_data_path = self.config.data / f"meta_data_{split}.json"
         if not meta_data_path.is_file():
@@ -227,9 +238,8 @@ class SDFStudio(DataParser):
         camera_to_worlds = []
 
         frames = meta["frames"]
-        if split == "train" and self.config.max_train_image_count != -1:
-            print(f"Only using {self.config.max_train_image_count} images from the train split.")
-            frames = frames[:self.config.max_train_image_count]
+        if max_image_count != -1:
+            frames = frames[:max_image_count]
 
         for i, frame in enumerate(frames):
             if i not in indices:

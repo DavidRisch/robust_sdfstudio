@@ -294,6 +294,8 @@ class VanillaDataManagerConfig(InstantiateConfig):
     sample_large_image_patches: bool = False
     """Use PixelSamplerLargePatch to generate training batches"""
 
+    eval_dataset_split_name = False
+
 
 class VanillaDataManager(DataManager):  # pylint: disable=abstract-method
     """Basic stored data manager implementation.
@@ -343,8 +345,12 @@ class VanillaDataManager(DataManager):  # pylint: disable=abstract-method
 
     def create_eval_dataset(self) -> InputDataset:
         """Sets up the data loaders for evaluation"""
+        split_name = self.test_split
+        if self.config.eval_dataset_split_name is not None:
+            split_name = self.config.eval_dataset_split_name
+
         return GeneralizedDataset(
-            dataparser_outputs=self.dataparser.get_dataparser_outputs(split=self.test_split),
+            dataparser_outputs=self.dataparser.get_dataparser_outputs(split=split_name),
             scale_factor=self.config.camera_res_scale_factor,
         )
 

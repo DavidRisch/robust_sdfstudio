@@ -20,7 +20,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Callable
 
 import torch
 import yaml
@@ -68,6 +68,7 @@ def eval_setup(
     config_path: Path,
     eval_num_rays_per_chunk: Optional[int] = None,
     test_mode: Literal["test", "val", "inference"] = "test",
+        override_config_func: Callable[[cfg.Config], None] = None
 ) -> Tuple[cfg.Config, Pipeline, Path]:
     """Shared setup for loading a saved pipeline for evaluation.
 
@@ -86,6 +87,9 @@ def eval_setup(
     # load save config
     config = yaml.load(config_path.read_text(), Loader=yaml.Loader)
     assert isinstance(config, cfg.Config)
+
+    if override_config_func is not None:
+        override_config_func(config)
 
     if eval_num_rays_per_chunk:
         config.pipeline.model.eval_num_rays_per_chunk = eval_num_rays_per_chunk

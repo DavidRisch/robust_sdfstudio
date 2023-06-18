@@ -6,6 +6,7 @@ from torchtyping import TensorType
 import torch.nn.functional as F
 
 from nerfstudio.robust.log_utils import LogUtils
+from nerfstudio.robust.output_collection import OutputCollection
 from nerfstudio.utils import writer
 
 from nerfstudio.robust.loss_collection_dense_spatial import LossCollectionDenseSpatial
@@ -35,7 +36,10 @@ class MaskEvaluatorResult:
 
     def add_to_global_writer(self, loss_type_name: str,
                              log_group_names: List[str], log_name_index: int,
-                             step: int):
+                             step: int, output_collection: OutputCollection):
+        output_collection.add_mask_evaluator_result(loss_type_name=loss_type_name, step=step,
+                                                    mask_evaluator_result=self)
+
         writer.put_scalar(
             name="/".join(log_group_names) + "/" + f"{10 + log_name_index} true_cleans: {loss_type_name}",
             scalar=self.true_cleans, step=step)
@@ -52,16 +56,20 @@ class MaskEvaluatorResult:
         if self.confusion_masks:
             LogUtils.log_image_with_colormap(step, log_group_names,
                                              f"{60 + log_name_index} true_clean_mask: {loss_type_name}",
-                                             self.confusion_masks.true_clean_mask, cmap="black_and_white")
+                                             self.confusion_masks.true_clean_mask, cmap="black_and_white",
+                                             output_collection=output_collection)
             LogUtils.log_image_with_colormap(step, log_group_names,
                                              f"{70 + log_name_index} false_clean_mask: {loss_type_name}",
-                                             self.confusion_masks.false_clean_mask, cmap="black_and_white")
+                                             self.confusion_masks.false_clean_mask, cmap="black_and_white",
+                                             output_collection=output_collection)
             LogUtils.log_image_with_colormap(step, log_group_names,
                                              f"{80 + log_name_index} true_distractor_mask: {loss_type_name}",
-                                             self.confusion_masks.true_distractor_mask, cmap="black_and_white")
+                                             self.confusion_masks.true_distractor_mask, cmap="black_and_white",
+                                             output_collection=output_collection)
             LogUtils.log_image_with_colormap(step, log_group_names,
                                              f"{90 + log_name_index} false_distractor_mask: {loss_type_name}",
-                                             self.confusion_masks.false_distractor_mask, cmap="black_and_white")
+                                             self.confusion_masks.false_distractor_mask, cmap="black_and_white",
+                                             output_collection=output_collection)
 
 
 class MaskEvaluator:
@@ -122,7 +130,7 @@ class MaskEvaluator:
     @torch.no_grad()
     def log_all_comparisons(cls, loss_collection: LossCollectionUnordered, batch: Dict[str, Any],
                             log_group_names: List[str],
-                            step: int) -> None:
+                            step: int, output_collection: OutputCollection) -> None:
         # print("log_all_comparisons", log_group_names, batch.keys())
         if "rgb_distracted_mask" in batch:
             result_rgb = cls.compare(
@@ -132,7 +140,7 @@ class MaskEvaluator:
             result_rgb.add_to_global_writer(loss_type_name="rgb",
                                             log_group_names=log_group_names,
                                             log_name_index=0,
-                                            step=step)
+                                            step=step, output_collection=output_collection)
 
             result_depth = cls.compare(
                 predicted_clean_mask=loss_collection.depth_mask,  # type: ignore
@@ -141,7 +149,7 @@ class MaskEvaluator:
             result_depth.add_to_global_writer(loss_type_name="depth",
                                               log_group_names=log_group_names,
                                               log_name_index=1,
-                                              step=step)
+                                              step=step, output_collection=output_collection)
 
             result_normal = cls.compare(
                 predicted_clean_mask=loss_collection.normal_mask,  # type: ignore
@@ -150,4 +158,4 @@ class MaskEvaluator:
             result_normal.add_to_global_writer(loss_type_name="normal",
                                                log_group_names=log_group_names,
                                                log_name_index=2,
-                                               step=step)
+                                               step=step, output_collection=output_collection)

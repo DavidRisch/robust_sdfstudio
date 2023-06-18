@@ -2,6 +2,7 @@ import torch
 from typing import Dict, List, Tuple, Optional
 from torchtyping import TensorType
 
+from nerfstudio.robust.output_collection import OutputCollection
 from nerfstudio.robust.print_utils import print_tensor
 from nerfstudio.utils import colormaps
 from nerfstudio.utils import writer
@@ -12,6 +13,7 @@ class LogUtils:
 
     @staticmethod
     def log_image_with_colormap(step: int, log_group_names: List[str], name: str, image: TensorType,
+                                output_collection: OutputCollection,
                                 cmap: str = "viridis"):
         assert len(image.shape) == 2, image.shape
         image = image.reshape((image.shape[0], image.shape[1], 1))
@@ -55,4 +57,8 @@ class LogUtils:
             blank_mask = blank_mask.reshape(blank_mask.shape[:2])
             colored_loss[blank_mask] = blank_color
         # print_tensor(f"log_with_colormap {log_group_names} {name} colored_loss", colored_loss)
+
+        name = "/".join(log_group_names) + "/" + name
+
+        output_collection.add_image(name=name, step=step, image=colored_loss)
         writer.put_image(name="/".join(log_group_names) + "/" + name, image=colored_loss, step=step)
