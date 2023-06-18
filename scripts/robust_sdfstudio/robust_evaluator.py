@@ -59,6 +59,8 @@ class RobustEvaluator:
             "checkpoint": str(checkpoint_path),
         }
 
+        output_dict["plot_suffix"] = "default"
+
         output_collection = OutputCollection()
 
         pipeline.robust_get_average_eval_image_metrics(max_image_count=self.max_image_count,

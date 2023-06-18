@@ -35,7 +35,7 @@ class RobustEvaluatorPlotter:
 
     @classmethod
     def plot_mask_evaluator_results(cls, mask_evaluator_results_by_loss_type_name: Dict[str, Any],
-                                    plot_directory_path: Path):
+                                    plot_directory_path: Path, suffix: str):
         fig, axs = plt.subplots(2, 2, figsize=(10, 10))
 
         for loss_type_name, mask_evaluator_results in mask_evaluator_results_by_loss_type_name.items():
@@ -48,14 +48,14 @@ class RobustEvaluatorPlotter:
                                                ax=axs[ax_index[0]][ax_index[1]])
 
         # fig.show()
-        fig.savefig(plot_directory_path / f"mask_evaluator.png")
+        fig.savefig(plot_directory_path / f"mask_evaluator_{suffix}.png")
 
     @classmethod
     def plot_all(cls, data_dict: Dict[str, Any], plot_directory_path: Path) -> None:
         print("data_dict", data_dict)
         plot_directory_path.mkdir(parents=True, exist_ok=True)
         cls.plot_mask_evaluator_results(mask_evaluator_results_by_loss_type_name=data_dict["mask_evaluator_results"],
-                                        plot_directory_path=plot_directory_path)
+                                        plot_directory_path=plot_directory_path, suffix=data_dict["plot_suffix"])
 
     def main(self) -> None:
         with open(self.yaml_path, "r") as in_file:
