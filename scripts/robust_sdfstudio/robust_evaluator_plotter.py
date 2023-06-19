@@ -24,7 +24,7 @@ class RobustEvaluatorPlotter:
 
     @classmethod
     def plot_mask_evaluator_result(cls, confusion_name, value_list: List[int], ax: plt.axes.Axes):
-        print(f"{value_list=}")
+        # print(f"{value_list=}")
 
         ax.set_title(confusion_name)
         ax.hist(
@@ -58,7 +58,7 @@ class RobustEvaluatorPlotter:
     def plot_aggregated_mask_evaluator_results_part(cls, confusion_name: str, data_by_configuration_name: Dict,
                                                     pattern: str,
                                                     ax: plt.axes.Axes):
-        print(f"{data_by_configuration_name=}")
+        # print(f"{data_by_configuration_name=}")
 
         labels: List[str] = []
         values: List[float] = []
@@ -87,7 +87,16 @@ class RobustEvaluatorPlotter:
                                                plot_directory_path: Path):
 
         for loss_type_name, data_by_configuration_name in data_by_configuration_name_by_loss_type.items():
-            fig, axs = plt.subplots(2, 2, figsize=(16, 16))
+            figure_name = f"mask_evaluator_{loss_type_name}_aggregated_{pattern_name}"
+
+            fig, axs = plt.subplots(2, 2, figsize=(18, 16))
+            fig.suptitle(figure_name)
+            fig.subplots_adjust(left=0.15,
+                                bottom=0.1,
+                                right=0.95,
+                                top=0.9,
+                                wspace=0.5,
+                                hspace=0.4)
 
             for confusion_name, ax_index in [("true_clean", (0, 0)),
                                              ("false_clean", (1, 0)),
@@ -99,13 +108,12 @@ class RobustEvaluatorPlotter:
                                                                 pattern=pattern,
                                                                 ax=axs[ax_index[0]][ax_index[1]])
 
-            plt.tight_layout()
             # fig.show()
-            fig.savefig(plot_directory_path / f"mask_evaluator_{loss_type_name}_aggregated_{pattern_name}.png")
+            fig.savefig(plot_directory_path / f"{figure_name}.png")
 
     @classmethod
     def plot_for_configuration(cls, data_for_configuration_dict: Dict[str, Any], plot_directory_path: Path) -> None:
-        print("data_for_configuration_dict", data_for_configuration_dict)
+        #print("data_for_configuration_dict", data_for_configuration_dict)
         plot_directory_path.mkdir(parents=True, exist_ok=True)
         cls.plot_mask_evaluator_results(
             mask_evaluator_results_by_loss_type_name=data_for_configuration_dict["mask_evaluator_results"],
@@ -113,13 +121,13 @@ class RobustEvaluatorPlotter:
 
     @classmethod
     def plot_all(cls, data_dict: Dict[str, Any], plot_directory_path: Path) -> None:
-        print("data_dict", data_dict)
+        # print("data_dict", data_dict)
 
         data_by_configuration_name_by_loss_type = defaultdict(lambda: defaultdict(dict))
 
         for configuration_name, data_for_configuration_dict in data_dict["configurations"].items():
-            cls.plot_for_configuration(data_for_configuration_dict=data_for_configuration_dict,
-                                       plot_directory_path=plot_directory_path)
+            # cls.plot_for_configuration(data_for_configuration_dict=data_for_configuration_dict,
+            #                           plot_directory_path=plot_directory_path)
 
             for loss_type_name, mask_evaluator_results in data_for_configuration_dict["mask_evaluator_results"].items():
                 data_by_configuration_name_by_loss_type[loss_type_name][configuration_name] = mask_evaluator_results
