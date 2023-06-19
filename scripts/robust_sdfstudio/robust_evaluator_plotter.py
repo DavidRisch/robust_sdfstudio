@@ -74,6 +74,7 @@ class RobustEvaluatorPlotter:
             labels,
             values,
         )
+        ax.set_xlim(0.0, 1.0)
         ax.set_xlabel("average proportion of total")
 
     @classmethod
