@@ -108,13 +108,13 @@ class RobustLossMaskCreator:
                 percentile=config.rgb_mask_from_percentile_of_rgb_loss, step=step,
             )
         if config.normal_mask_from_percentile_of_normal_loss != -1.0:
-            assert not config.use_rgb_distracted_mask_for_normal_loss_mask
+            assert not config.use_normal_distracted_mask_for_normal_loss_mask
             loss_collection.normal_mask = self._create_loss_mask_from_loss(
                 loss=loss_collection.get_pixelwise_normal_loss(), loss_type_name="normal",
                 percentile=config.normal_mask_from_percentile_of_normal_loss, step=step,
             )
         if config.depth_mask_from_percentile_of_depth_loss != -1.0:
-            assert not config.use_rgb_distracted_mask_for_depth_loss_mask
+            assert not config.use_depth_distracted_mask_for_depth_loss_mask
             loss_collection.depth_mask = self._create_loss_mask_from_loss(
                 loss=loss_collection.pixelwise_depth_loss, loss_type_name="depth",
                 percentile=config.depth_mask_from_percentile_of_depth_loss, step=step,

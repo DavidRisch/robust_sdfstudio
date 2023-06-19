@@ -24,18 +24,20 @@ class RobustLoss:
         if "rgb_distracted_mask" in batch:
             assert len(batch["rgb_distracted_mask"].shape) == 1
             rgb_distracted_mask = batch["rgb_distracted_mask"]
+            depth_distracted_mask = batch["depth_distracted_mask"]
+            normal_distracted_mask = batch["normal_distracted_mask"]
 
             # print_tensor("apply rgb_distracted_mask before", loss_collection.rgb_mask)
             if config.use_rgb_distracted_mask_for_rgb_loss_mask:
                 assert config.rgb_mask_from_percentile_of_rgb_loss == -1.0
                 loss_collection.rgb_mask[rgb_distracted_mask] = 0
                 # print_tensor("apply rgb_distracted_mask after", loss_collection.rgb_mask)
-            if config.use_rgb_distracted_mask_for_normal_loss_mask:
+            if config.use_normal_distracted_mask_for_normal_loss_mask:
                 assert config.rgb_mask_from_percentile_of_rgb_loss == -1.0
-                loss_collection.depth_mask[rgb_distracted_mask] = 0
-            if config.use_rgb_distracted_mask_for_depth_loss_mask:
+                loss_collection.depth_mask[depth_distracted_mask] = 0
+            if config.use_depth_distracted_mask_for_depth_loss_mask:
                 assert config.rgb_mask_from_percentile_of_rgb_loss == -1.0
-                loss_collection.normal_mask[rgb_distracted_mask] = 0
+                loss_collection.normal_mask[normal_distracted_mask] = 0
 
     @classmethod
     @torch.no_grad()

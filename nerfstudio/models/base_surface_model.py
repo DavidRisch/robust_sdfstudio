@@ -136,8 +136,8 @@ class SurfaceModelConfig(ModelConfig):
     """Which norm to use for the scene contraction."""
 
     use_rgb_distracted_mask_for_rgb_loss_mask: bool = False
-    use_rgb_distracted_mask_for_normal_loss_mask: bool = False
-    use_rgb_distracted_mask_for_depth_loss_mask: bool = False
+    use_normal_distracted_mask_for_normal_loss_mask: bool = False
+    use_depth_distracted_mask_for_depth_loss_mask: bool = False
 
     rgb_mask_from_percentile_of_rgb_loss: float = -1.0
     """mask the rgb loss by only keeping a certain percentage of it. (0 to 100)"""

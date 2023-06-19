@@ -68,8 +68,8 @@ def prepare_run(run_config: RunConfig) -> List[str]:
     if run_config.robust_config.use_gt_distracted_mask:
         arguments += [
             "--pipeline.model.use_rgb_distracted_mask_for_rgb_loss_mask", str(True),
-            "--pipeline.model.use_rgb_distracted_mask_for_normal_loss_mask", str(True),
-            "--pipeline.model.use_rgb_distracted_mask_for_depth_loss_mask", str(True),
+            "--pipeline.model.use_normal_distracted_mask_for_normal_loss_mask", str(True),
+            "--pipeline.model.use_depth_distracted_mask_for_depth_loss_mask", str(True),
         ]
 
     if run_config.robust_config.simple_percentile is not None:
