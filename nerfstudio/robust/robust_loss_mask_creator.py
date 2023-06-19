@@ -26,6 +26,10 @@ class RobustLossMaskCreator:
             for loss_type_name in ("rgb", "depth", "normal")
         }
 
+    def reset_history(self):
+        for key in self.losses_history_by_loss_type:
+            self.losses_history_by_loss_type[key] = []
+
     @torch.no_grad()
     def _create_loss_mask_from_loss(self, loss: TensorType, loss_type_name: Literal["rgb", "depth", "normal"],
                                     percentile: float, step: Optional[int]) -> torch.Tensor:
@@ -53,6 +57,7 @@ class RobustLossMaskCreator:
                                   step=step)
 
         losses_history: List[torch.Tensor] = self.losses_history_by_loss_type[loss_type_name]
+        print(f"{len(losses_history)=}")
 
         max_history_length = 32
         if len(losses_history) > max_history_length:

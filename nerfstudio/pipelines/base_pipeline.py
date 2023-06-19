@@ -459,6 +459,7 @@ class VanillaPipeline(Pipeline):
 
                 for configurations_setter, output_collection in zip(configurations_setters,
                                                                     output_collections_for_configurations):
+                    self.model.robust_loss_mask_creator.reset_history()
                     print(f"Setting configuration '{configurations_setter.name}'")
                     configurations_setter.set_func(self)
 
