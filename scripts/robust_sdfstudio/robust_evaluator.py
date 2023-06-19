@@ -7,7 +7,7 @@ from __future__ import annotations
 import yaml
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable
 
 import cv2
 import numpy as np
@@ -19,6 +19,7 @@ from nerfstudio.pipelines.configuration_setter import ConfigurationsSetter
 from nerfstudio.robust.output_collection import OutputCollection
 from nerfstudio.robust.print_utils import print_tensor
 from nerfstudio.utils.eval_utils import eval_setup
+from scripts.robust_sdfstudio.robust_config import RobustConfig
 from scripts.robust_sdfstudio.robust_evaluator_plotter import RobustEvaluatorPlotter
 
 CONSOLE = Console(width=120)
@@ -73,26 +74,31 @@ class RobustEvaluator:
         configurations_setters = []
         configurations_setters.append(ConfigurationsSetter("default", lambda pipeline: None))
 
-        def percentile_25(pipeline):
-            pipeline.model.config.rgb_mask_from_percentile_of_rgb_loss = 25
-            pipeline.model.config.normal_mask_from_percentile_of_normal_loss = 25
-            pipeline.model.config.depth_mask_from_percentile_of_depth_loss = 25
+        def create_configuration_setter_func(robust_config: RobustConfig) -> Callable:
+            def set_func(pipeline):
+                pipeline.model.config.rgb_mask_from_percentile_of_rgb_loss = robust_config.simple_percentile
+                pipeline.model.config.normal_mask_from_percentile_of_normal_loss = robust_config.simple_percentile
+                pipeline.model.config.depth_mask_from_percentile_of_depth_loss = robust_config.simple_percentile
 
-        configurations_setters.append(ConfigurationsSetter("percentile_25", percentile_25))
+            return set_func
 
-        def percentile_50(pipeline):
-            pipeline.model.config.rgb_mask_from_percentile_of_rgb_loss = 50
-            pipeline.model.config.normal_mask_from_percentile_of_normal_loss = 50
-            pipeline.model.config.depth_mask_from_percentile_of_depth_loss = 50
+        configurations_setters.append(ConfigurationsSetter("percentile_25", create_configuration_setter_func(
+            RobustConfig(
+                simple_percentile=25
+            )
+        )))
 
-        configurations_setters.append(ConfigurationsSetter("percentile_50", percentile_50))
+        configurations_setters.append(ConfigurationsSetter("percentile_50", create_configuration_setter_func(
+            RobustConfig(
+                simple_percentile=50
+            )
+        )))
 
-        def percentile_95(pipeline):
-            pipeline.model.config.rgb_mask_from_percentile_of_rgb_loss = 95
-            pipeline.model.config.normal_mask_from_percentile_of_normal_loss = 95
-            pipeline.model.config.depth_mask_from_percentile_of_depth_loss = 95
-
-        configurations_setters.append(ConfigurationsSetter("percentile_95", percentile_95))
+        configurations_setters.append(ConfigurationsSetter("percentile_95", create_configuration_setter_func(
+            RobustConfig(
+                simple_percentile=95
+            )
+        )))
 
         main_output_collection = OutputCollection()
         output_collections_for_configurations = [
