@@ -72,33 +72,66 @@ class RobustEvaluator:
         }
 
         configurations_setters = []
-        configurations_setters.append(ConfigurationsSetter("default", lambda pipeline: None))
 
         def create_configuration_setter_func(robust_config: RobustConfig) -> Callable:
             def set_func(pipeline):
-                pipeline.model.config.rgb_mask_from_percentile_of_rgb_loss = robust_config.simple_percentile
-                pipeline.model.config.normal_mask_from_percentile_of_normal_loss = robust_config.simple_percentile
-                pipeline.model.config.depth_mask_from_percentile_of_depth_loss = robust_config.simple_percentile
+                pipeline.model.config.use_rgb_distracted_mask_for_rgb_loss_mask = robust_config.use_gt_distracted_mask
+                pipeline.model.config.use_normal_distracted_mask_for_normal_loss_mask = robust_config.use_gt_distracted_mask
+                pipeline.model.config.use_depth_distracted_mask_for_depth_loss_mask = robust_config.use_gt_distracted_mask
+
+                simple_percentile = robust_config.simple_percentile
+                if simple_percentile is None:
+                    simple_percentile = -1.0
+
+                pipeline.model.config.rgb_mask_from_percentile_of_rgb_loss = simple_percentile
+                pipeline.model.config.normal_mask_from_percentile_of_normal_loss = simple_percentile
+                pipeline.model.config.depth_mask_from_percentile_of_depth_loss = simple_percentile
+
+                pipeline.model.config.robust_loss_kernel_name = robust_config.robust_loss_kernel_name
+                pipeline.model.config.robust_loss_classify_patches_mode = robust_config.robust_loss_classify_patches_mode
+                # pipeline.model.config.robust_loss_combine_mode = robust_config.robust_loss_combine_mode
 
             return set_func
 
-        configurations_setters.append(ConfigurationsSetter("percentile_25", create_configuration_setter_func(
-            RobustConfig(
-                simple_percentile=25
-            )
+        configurations_setters.append(ConfigurationsSetter("default", create_configuration_setter_func(
+            RobustConfig()
         )))
 
-        configurations_setters.append(ConfigurationsSetter("percentile_50", create_configuration_setter_func(
-            RobustConfig(
-                simple_percentile=50
-            )
-        )))
+        configurations_setters.append(
+            ConfigurationsSetter(f"gt_distracted_mask", create_configuration_setter_func(
+                RobustConfig(
+                    use_gt_distracted_mask=True,
+                )
+            )))
 
-        configurations_setters.append(ConfigurationsSetter("percentile_95", create_configuration_setter_func(
-            RobustConfig(
-                simple_percentile=95
-            )
-        )))
+        percentile_values = [20, 40, 60, 80, 95, 99]
+
+        for simple_percentile in percentile_values:
+            configurations_setters.append(
+                ConfigurationsSetter(f"percentile_{simple_percentile}", create_configuration_setter_func(
+                    RobustConfig(
+                        simple_percentile=simple_percentile,
+                    )
+                )))
+
+        for simple_percentile in percentile_values:
+            configurations_setters.append(
+                ConfigurationsSetter(f"kernel_percentile_{simple_percentile}", create_configuration_setter_func(
+                    RobustConfig(  #
+                        robust_loss_kernel_name="Box_5x5",
+                        simple_percentile=simple_percentile,
+                    )
+                )))
+
+        for simple_percentile in percentile_values:
+            configurations_setters.append(
+                ConfigurationsSetter(f"kernel_patches_percentile_{simple_percentile}", create_configuration_setter_func(
+                    RobustConfig(  #
+                        robust_loss_kernel_name="Box_5x5",
+                        robust_loss_classify_patches_mode="A",
+                        simple_percentile=simple_percentile,
+                    )
+                )))
 
         main_output_collection = OutputCollection()
         output_collections_for_configurations = [

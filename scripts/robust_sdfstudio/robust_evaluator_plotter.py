@@ -52,6 +52,7 @@ class RobustEvaluatorPlotter:
 
             # fig.show()
             fig.savefig(plot_directory_path / f"mask_evaluator_{loss_type_name}_{suffix}.png")
+            fig.close()
 
     @classmethod
     def plot_aggregated_mask_evaluator_results_part(cls, confusion_name: str, data_by_configuration_name: Dict,
@@ -82,7 +83,7 @@ class RobustEvaluatorPlotter:
                                                plot_directory_path: Path):
 
         for loss_type_name, data_by_configuration_name in data_by_configuration_name_by_loss_type.items():
-            fig, axs = plt.subplots(2, 2, figsize=(12, 12))
+            fig, axs = plt.subplots(2, 2, figsize=(16, 16))
 
             for confusion_name, ax_index in [("true_clean", (0, 0)),
                                              ("false_clean", (1, 0)),

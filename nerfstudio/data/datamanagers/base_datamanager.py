@@ -483,6 +483,7 @@ class VanillaDataManager(DataManager):  # pylint: disable=abstract-method
         ray_bundle = self.eval_ray_generator(ray_indices)
 
         batch["step"] = step
+        batch["image_is_spatial_and_contiguous"] = True
 
         return ray_bundle, batch
 
