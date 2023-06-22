@@ -53,6 +53,9 @@ class RobustEvaluator:
     def main(self) -> None:
         def override_config_func(current_config):
             current_config.pipeline.datamanager.eval_dataset_split_name = "train_all"
+            print(f"original dataset directory: {current_config.pipeline.datamanager.dataparser.data}")
+            current_config.pipeline.datamanager.dataparser.data = current_config.pipeline.datamanager.dataparser.data.parent / "distracted"
+            print(f"used dataset directory: {current_config.pipeline.datamanager.dataparser.data}")
 
         loaded_config, loaded_pipeline, checkpoint_path = eval_setup(config_path=self.load_config,
                                                                      override_config_func=override_config_func)
