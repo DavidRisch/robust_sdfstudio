@@ -372,7 +372,7 @@ class VanillaPipeline(Pipeline):
 
         self.model.log_pixelwise_loss(ray_bundle=train_ray_bundle, batch=train_batch, step=step,
                                       log_group_name="Train Batches", image_width=image_width,
-                                      image_height=image_height)
+                                      image_height=image_height, output_collection=OutputCollection())
 
         self.train()
         # TODO: also log gt/pred rgb etc
