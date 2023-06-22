@@ -110,6 +110,7 @@ class RobustEvaluatorPlotter:
 
             # fig.show()
             fig.savefig(plot_directory_path / f"{figure_name}.png")
+            plt.close(fig)
 
     @classmethod
     def plot_aggregated_mask_evaluator_results_line_part(cls, confusion_name: str, data_by_configuration_name: Dict,
@@ -129,7 +130,7 @@ class RobustEvaluatorPlotter:
                 if pattern != "" and not configuration_name.startswith(pattern):
                     continue
 
-                print(f"{data_for_configuration_dict=}")
+                # print(f"{data_for_configuration_dict=}")
                 raw_values = data_for_configuration_dict[f"{confusion_name}s_list"]
                 value = sum(raw_values) / len(raw_values)
                 labels.append(configuration_name)
@@ -176,6 +177,7 @@ class RobustEvaluatorPlotter:
                                                                      ax=axs[ax_index[0]][ax_index[1]])
 
             fig.savefig(plot_directory_path / f"{figure_name}.png")
+            plt.close(fig)
 
     @classmethod
     def plot_for_configuration(cls, data_for_configuration_dict: Dict[str, Any], plot_directory_path: Path) -> None:
