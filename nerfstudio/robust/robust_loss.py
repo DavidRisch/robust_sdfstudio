@@ -103,19 +103,29 @@ class RobustLoss:
             # print_tensor("apply_classify_patches old_value", old_value)
 
             width, height = old_value.shape[1], old_value.shape[0]
+
+            # this methods does not work well at the edges of the batch, so the batch should never be very small
+            assert width > outer_neighbourhood_kernel_size and height > outer_neighbourhood_kernel_size, old_value.shape
+
             old_value = old_value.reshape((1, 1, height, width))
 
+            # print_tensor("apply_classify_patches old_value reshaped", old_value)
+
+            pad_amount = outer_neighbourhood_kernel_size // 2 + inner_neighbourhood_kernel_size // 2
+            value_with_padding = torch.nn.ReplicationPad2d((pad_amount, pad_amount, pad_amount, pad_amount))(
+                old_value)
+
             # modified_value contains values that are 0 (outlier) or 1 (inlier)
-            modified_value = F.conv2d(input=old_value, weight=outer_neighbourhood_kernel, stride=1, padding="same")
+            modified_value = F.conv2d(input=value_with_padding, weight=outer_neighbourhood_kernel, stride=1, padding=0)
             # modified_value contains values in the range [0,1] (proportion of inliers in a large neighborhood)
             # print_tensor("apply_classify_patches after first conv2d", modified_value)
             modified_value = (modified_value >= 0.6).float()
             # modified_value contains values that are 0 or 1 (large neighborhood contains enough inliers)
 
             # https://stackoverflow.com/a/56237377
-            modified_value = torch.nn.functional.conv2d(modified_value, inner_neighbourhood_kernel, stride=1,
-                                                        padding="same")
+            modified_value = torch.nn.functional.conv2d(modified_value, inner_neighbourhood_kernel, stride=1, padding=0)
             # modified_value contains values that are 0, 1, 2, ...
+            #print_tensor("apply_classify_patches after second conv2d", modified_value)
             modified_value = torch.clamp(modified_value, 0, 1)
             # modified_value contains values that are 0 (outlier) or 1 (inlier)
 
