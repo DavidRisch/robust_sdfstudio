@@ -115,32 +115,44 @@ class RobustEvaluatorPlotter:
     def plot_aggregated_mask_evaluator_results_line_part(cls, confusion_name: str, data_by_configuration_name: Dict,
                                                          pattern: str,
                                                          ax: plt.axes.Axes):
-        labels: List[str] = []
-        y_values: List[float] = []
 
-        for configuration_name, data_for_configuration_dict in data_by_configuration_name.items():
-            if pattern != "" and not configuration_name.startswith(pattern):
-                continue
+        if pattern != "":
+            patterns = [pattern]
+        else:
+            patterns = ["percentile", "kernel_percentile", "kernel_patches_percentile"]
 
-            print(f"{data_for_configuration_dict=}")
-            raw_values = data_for_configuration_dict[f"{confusion_name}s_list"]
-            value = sum(raw_values) / len(raw_values)
-            labels.append(configuration_name)
-            y_values.append(value)
+        for pattern in patterns:
+            labels: List[str] = []
+            y_values: List[float] = []
 
-        x_values: List[float] = []
-        for label in labels:
-            index = label.rfind("_")
-            percentile_str = label[index + 1:]
-            x_values.append(int(percentile_str))
+            for configuration_name, data_for_configuration_dict in data_by_configuration_name.items():
+                if pattern != "" and not configuration_name.startswith(pattern):
+                    continue
+
+                print(f"{data_for_configuration_dict=}")
+                raw_values = data_for_configuration_dict[f"{confusion_name}s_list"]
+                value = sum(raw_values) / len(raw_values)
+                labels.append(configuration_name)
+                y_values.append(value)
+
+            x_values: List[float] = []
+            for label in labels:
+                index = label.rfind("_")
+                percentile_str = label[index + 1:]
+                x_values.append(int(percentile_str))
+
+            ax.plot(
+                x_values,
+                y_values,
+                label=pattern
+            )
 
         ax.set_title(confusion_name)
-        ax.plot(
-            x_values,
-            y_values,
-        )
         ax.set_xlim(0.0, 100.0)
-        ax.set_xlabel("average proportion of total")
+        # ax.set_ylim(0.0, 1.0)
+        ax.set_xlabel("selected percentile")
+        ax.set_ylabel("average proportion of total")
+        ax.legend()
 
     @classmethod
     def plot_aggregated_mask_evaluator_results_line(cls,
@@ -153,12 +165,6 @@ class RobustEvaluatorPlotter:
 
             fig, axs = plt.subplots(2, 2, figsize=(18, 16))
             fig.suptitle(figure_name)
-            fig.subplots_adjust(left=0.15,
-                                bottom=0.1,
-                                right=0.95,
-                                top=0.9,
-                                wspace=0.5,
-                                hspace=0.4)
 
             for confusion_name, ax_index in [("true_clean", (0, 0)),
                                              ("false_clean", (1, 0)),
@@ -194,7 +200,7 @@ class RobustEvaluatorPlotter:
                 data_by_configuration_name_by_loss_type[loss_type_name][configuration_name] = mask_evaluator_results
 
         for pattern_name, pattern, also_with_line_plot in [
-            ("all", "", False),
+            ("all", "", True),
             ("percentile", "percentile_", True),
             ("kernel_percentile", "kernel_percentile_", True),
             ("kernel_patches_percentile", "kernel_patches_percentile_", True),
