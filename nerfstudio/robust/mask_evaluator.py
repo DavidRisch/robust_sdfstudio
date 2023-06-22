@@ -17,6 +17,10 @@ from nerfstudio.robust.loss_collection_unordered import LossCollectionUnordered
 if TYPE_CHECKING:
     from nerfstudio.models.base_surface_model import SurfaceModelConfig
 
+@dataclass(unsafe_hash=True)
+class MaskEvaluatorResultKey:
+    loss_type_name: str
+    robust_loss_combine_mode: str
 
 @dataclass
 class MaskEvaluatorConfusionMasks:
@@ -36,8 +40,12 @@ class MaskEvaluatorResult:
 
     def add_to_global_writer(self, loss_type_name: str,
                              log_group_names: List[str], log_name_index: int,
-                             step: int, output_collection: OutputCollection):
-        output_collection.add_mask_evaluator_result(loss_type_name=loss_type_name, step=step,
+                             step: int, robust_loss_combine_mode: str, output_collection: OutputCollection):
+        output_collection.add_mask_evaluator_result(step=step,
+                                                    mask_evaluator_result_key=MaskEvaluatorResultKey(
+                                                        loss_type_name=loss_type_name,
+                                                        robust_loss_combine_mode=robust_loss_combine_mode,
+                                                    ),
                                                     mask_evaluator_result=self)
 
         writer.put_scalar(
@@ -130,7 +138,7 @@ class MaskEvaluator:
     @torch.no_grad()
     def log_all_comparisons(cls, loss_collection: LossCollectionUnordered, batch: Dict[str, Any],
                             log_group_names: List[str],
-                            step: int, output_collection: OutputCollection) -> None:
+                            step: int, output_collection: OutputCollection, robust_loss_combine_mode: str) -> None:
         # print("log_all_comparisons", log_group_names, batch.keys())
         if "rgb_distracted_mask" in batch:
             result_rgb = cls.compare(
@@ -140,7 +148,8 @@ class MaskEvaluator:
             result_rgb.add_to_global_writer(loss_type_name="rgb",
                                             log_group_names=log_group_names,
                                             log_name_index=0,
-                                            step=step, output_collection=output_collection)
+                                            step=step, robust_loss_combine_mode=robust_loss_combine_mode,
+                                            output_collection=output_collection)
 
             result_depth = cls.compare(
                 predicted_clean_mask=loss_collection.depth_mask,  # type: ignore
@@ -149,7 +158,8 @@ class MaskEvaluator:
             result_depth.add_to_global_writer(loss_type_name="depth",
                                               log_group_names=log_group_names,
                                               log_name_index=1,
-                                              step=step, output_collection=output_collection)
+                                              step=step, robust_loss_combine_mode=robust_loss_combine_mode,
+                                              output_collection=output_collection)
 
             result_normal = cls.compare(
                 predicted_clean_mask=loss_collection.normal_mask,  # type: ignore
@@ -158,4 +168,5 @@ class MaskEvaluator:
             result_normal.add_to_global_writer(loss_type_name="normal",
                                                log_group_names=log_group_names,
                                                log_name_index=2,
-                                               step=step, output_collection=output_collection)
+                                               step=step, robust_loss_combine_mode=robust_loss_combine_mode,
+                                               output_collection=output_collection)

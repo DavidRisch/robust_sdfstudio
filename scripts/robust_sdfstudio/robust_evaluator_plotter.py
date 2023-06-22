@@ -82,35 +82,38 @@ class RobustEvaluatorPlotter:
         ax.set_xlabel("average proportion of total")
 
     @classmethod
-    def plot_aggregated_mask_evaluator_results(cls, data_by_configuration_name_by_loss_type: Dict[str, Dict[str, Any]],
+    def plot_aggregated_mask_evaluator_results(cls,
+                                               data_by_configuration_name_by_loss_type_by_combine_mode: Dict[
+                                                   str, Dict[str, Dict[str, Any]]],
                                                pattern_name: str, pattern: str,
                                                plot_directory_path: Path):
+        for combine_mode, data_by_configuration_name_by_loss_type in data_by_configuration_name_by_loss_type_by_combine_mode.items():
+            for loss_type_name, data_by_configuration_name in data_by_configuration_name_by_loss_type.items():
+                figure_name = f"mask_evaluator_{combine_mode}_{loss_type_name}_aggregated_bar_{pattern_name}"
+                # print(f"plot_aggregated_mask_evaluator_results {figure_name=}")
 
-        for loss_type_name, data_by_configuration_name in data_by_configuration_name_by_loss_type.items():
-            figure_name = f"mask_evaluator_{loss_type_name}_aggregated_bar_{pattern_name}"
+                fig, axs = plt.subplots(2, 2, figsize=(18, 16))
+                fig.suptitle(figure_name)
+                fig.subplots_adjust(left=0.15,
+                                    bottom=0.1,
+                                    right=0.95,
+                                    top=0.9,
+                                    wspace=0.5,
+                                    hspace=0.4)
 
-            fig, axs = plt.subplots(2, 2, figsize=(18, 16))
-            fig.suptitle(figure_name)
-            fig.subplots_adjust(left=0.15,
-                                bottom=0.1,
-                                right=0.95,
-                                top=0.9,
-                                wspace=0.5,
-                                hspace=0.4)
+                for confusion_name, ax_index in [("true_clean", (0, 0)),
+                                                 ("false_clean", (1, 0)),
+                                                 ("true_distractor", (1, 1)),
+                                                 ("false_distractor", (0, 1))]:
+                    # value_list = mask_evaluator_results[f"{confusion_name}s_list"]
+                    cls.plot_aggregated_mask_evaluator_results_part(confusion_name=confusion_name,
+                                                                    data_by_configuration_name=data_by_configuration_name,
+                                                                    pattern=pattern,
+                                                                    ax=axs[ax_index[0]][ax_index[1]])
 
-            for confusion_name, ax_index in [("true_clean", (0, 0)),
-                                             ("false_clean", (1, 0)),
-                                             ("true_distractor", (1, 1)),
-                                             ("false_distractor", (0, 1))]:
-                # value_list = mask_evaluator_results[f"{confusion_name}s_list"]
-                cls.plot_aggregated_mask_evaluator_results_part(confusion_name=confusion_name,
-                                                                data_by_configuration_name=data_by_configuration_name,
-                                                                pattern=pattern,
-                                                                ax=axs[ax_index[0]][ax_index[1]])
-
-            # fig.show()
-            fig.savefig(plot_directory_path / f"{figure_name}.png")
-            plt.close(fig)
+                # fig.show()
+                fig.savefig(plot_directory_path / f"{figure_name}.png")
+                plt.close(fig)
 
     @classmethod
     def plot_aggregated_mask_evaluator_results_line_part(cls, confusion_name: str, data_by_configuration_name: Dict,
@@ -157,12 +160,85 @@ class RobustEvaluatorPlotter:
 
     @classmethod
     def plot_aggregated_mask_evaluator_results_line(cls,
-                                                    data_by_configuration_name_by_loss_type: Dict[str, Dict[str, Any]],
+                                                    data_by_configuration_name_by_loss_type_by_combine_mode: Dict[
+                                                        str, Dict[str, Dict[str, Any]]],
                                                     pattern_name: str, pattern: str,
                                                     plot_directory_path: Path):
+        for combine_mode, data_by_configuration_name_by_loss_type in data_by_configuration_name_by_loss_type_by_combine_mode.items():
+            for loss_type_name, data_by_configuration_name in data_by_configuration_name_by_loss_type.items():
+                figure_name = f"mask_evaluator_{combine_mode}_{loss_type_name}_aggregated_line_{pattern_name}"
+                # print(f"plot_aggregated_mask_evaluator_results_line {figure_name=}")
 
-        for loss_type_name, data_by_configuration_name in data_by_configuration_name_by_loss_type.items():
-            figure_name = f"mask_evaluator_{loss_type_name}_aggregated_line_{pattern_name}"
+                fig, axs = plt.subplots(2, 2, figsize=(18, 16))
+                fig.suptitle(figure_name)
+
+                for confusion_name, ax_index in [("true_clean", (0, 0)),
+                                                 ("false_clean", (1, 0)),
+                                                 ("true_distractor", (1, 1)),
+                                                 ("false_distractor", (0, 1))]:
+                    cls.plot_aggregated_mask_evaluator_results_line_part(confusion_name=confusion_name,
+                                                                         data_by_configuration_name=data_by_configuration_name,
+                                                                         pattern=pattern,
+                                                                         ax=axs[ax_index[0]][ax_index[1]])
+
+                fig.savefig(plot_directory_path / f"{figure_name}.png")
+                plt.close(fig)
+
+    @classmethod
+    def plot_compare_combine_modes_part(cls, confusion_name: str,
+                                        data_by_configuration_name_by_combine_mode: Dict,
+                                        pattern: str,
+                                        ax: plt.axes.Axes):
+        assert pattern != ""
+
+        print("data_by_configuration_name_by_combine_mode", data_by_configuration_name_by_combine_mode)
+        # exit(5)
+
+        for combine_mode, data_by_configuration_name in data_by_configuration_name_by_combine_mode.items():
+            labels: List[str] = []
+            y_values: List[float] = []
+
+            for configuration_name, data_by_combine_mode in data_by_configuration_name.items():
+                if not configuration_name.startswith(pattern):
+                    continue
+
+                # print(f"{data_for_configuration_dict=}")
+                raw_values = data_by_combine_mode[f"{confusion_name}s_list"]
+                value = sum(raw_values) / len(raw_values)
+                labels.append(configuration_name)
+                y_values.append(value)
+
+            x_values: List[float] = []
+            for label in labels:
+                index = label.rfind("_")
+                percentile_str = label[index + 1:]
+                x_values.append(int(percentile_str))
+
+            ax.plot(
+                x_values,
+                y_values,
+                label=combine_mode
+            )
+
+        ax.set_title(confusion_name)
+        ax.set_xlim(0.0, 100.0)
+        # ax.set_ylim(0.0, 1.0)
+        ax.set_xlabel("selected percentile")
+        ax.set_ylabel("average proportion of total")
+        ax.legend()
+
+    @classmethod
+    def plot_compare_combine_modes(cls,
+                                   data_by_configuration_name_by_combine_mode_by_loss_type: Dict[
+                                       str, Dict[str, Dict[str, Any]]],
+                                   pattern_name: str, pattern: str,
+                                   plot_directory_path: Path):
+        print(f"{data_by_configuration_name_by_combine_mode_by_loss_type=}")
+        for loss_type_name, data_by_configuration_name_by_combine_mode in data_by_configuration_name_by_combine_mode_by_loss_type.items():
+            # for pattern in ["percentile", "kernel_percentile", "kernel_patches_percentile"]:
+            # for configuration_name, data_by_combine_mode in data_by_combine_mode_by_configuration_name.items():
+            figure_name = f"mask_evaluator_combine_modes_{loss_type_name}_aggregated_line_{pattern_name}"
+            print(f"plot_aggregated_mask_evaluator_results_line2 {figure_name=}")
 
             fig, axs = plt.subplots(2, 2, figsize=(18, 16))
             fig.suptitle(figure_name)
@@ -171,10 +247,10 @@ class RobustEvaluatorPlotter:
                                              ("false_clean", (1, 0)),
                                              ("true_distractor", (1, 1)),
                                              ("false_distractor", (0, 1))]:
-                cls.plot_aggregated_mask_evaluator_results_line_part(confusion_name=confusion_name,
-                                                                     data_by_configuration_name=data_by_configuration_name,
-                                                                     pattern=pattern,
-                                                                     ax=axs[ax_index[0]][ax_index[1]])
+                cls.plot_compare_combine_modes_part(confusion_name=confusion_name,
+                                                    data_by_configuration_name_by_combine_mode=data_by_configuration_name_by_combine_mode,
+                                                    pattern=pattern_name,
+                                                    ax=axs[ax_index[0]][ax_index[1]])
 
             fig.savefig(plot_directory_path / f"{figure_name}.png")
             plt.close(fig)
@@ -191,15 +267,21 @@ class RobustEvaluatorPlotter:
     def plot_all(cls, data_dict: Dict[str, Any], plot_directory_path: Path) -> None:
         # print("data_dict", data_dict)
 
-        data_by_configuration_name_by_loss_type = defaultdict(lambda: defaultdict(dict))
+        data_by_configuration_name_by_loss_type_by_combine_mode = defaultdict(lambda: defaultdict(dict))
+        data_by_configuration_name_by_combine_mode_by_loss_type = defaultdict(lambda: defaultdict(dict))
 
         for configuration_name, data_for_configuration_dict in data_dict["configurations"].items():
             # commented out for performance
             # cls.plot_for_configuration(data_for_configuration_dict=data_for_configuration_dict,
             #                           plot_directory_path=plot_directory_path)
 
-            for loss_type_name, mask_evaluator_results in data_for_configuration_dict["mask_evaluator_results"].items():
-                data_by_configuration_name_by_loss_type[loss_type_name][configuration_name] = mask_evaluator_results
+            for combine_mode, mask_evaluator_results_by_loss_type in data_for_configuration_dict[
+                "mask_evaluator_results"].items():
+                for loss_type_name, mask_evaluator_results in mask_evaluator_results_by_loss_type.items():
+                    data_by_configuration_name_by_loss_type_by_combine_mode[combine_mode][loss_type_name][
+                        configuration_name] = mask_evaluator_results
+                    data_by_configuration_name_by_combine_mode_by_loss_type[loss_type_name][
+                        combine_mode][configuration_name] = mask_evaluator_results
 
         for pattern_name, pattern, also_with_line_plot in [
             ("all", "", True),
@@ -207,13 +289,18 @@ class RobustEvaluatorPlotter:
             ("kernel_percentile", "kernel_percentile_", True),
             ("kernel_patches_percentile", "kernel_patches_percentile_", True),
         ]:
+            if pattern_name != "all":
+                cls.plot_compare_combine_modes(
+                    data_by_configuration_name_by_combine_mode_by_loss_type=data_by_configuration_name_by_combine_mode_by_loss_type,
+                    pattern_name=pattern_name, pattern=pattern,
+                    plot_directory_path=plot_directory_path)
             cls.plot_aggregated_mask_evaluator_results(
-                data_by_configuration_name_by_loss_type=data_by_configuration_name_by_loss_type,
+                data_by_configuration_name_by_loss_type_by_combine_mode=data_by_configuration_name_by_loss_type_by_combine_mode,
                 pattern_name=pattern_name, pattern=pattern,
                 plot_directory_path=plot_directory_path)
             if also_with_line_plot:
                 cls.plot_aggregated_mask_evaluator_results_line(
-                    data_by_configuration_name_by_loss_type=data_by_configuration_name_by_loss_type,
+                    data_by_configuration_name_by_loss_type_by_combine_mode=data_by_configuration_name_by_loss_type_by_combine_mode,
                     pattern_name=pattern_name, pattern=pattern,
                     plot_directory_path=plot_directory_path)
 

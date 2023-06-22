@@ -7,7 +7,7 @@ from __future__ import annotations
 import yaml
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Callable
+from typing import TYPE_CHECKING, Optional, Callable
 
 import cv2
 import numpy as np
@@ -21,6 +21,9 @@ from nerfstudio.robust.print_utils import print_tensor
 from nerfstudio.utils.eval_utils import eval_setup
 from scripts.robust_sdfstudio.robust_config import RobustConfig
 from scripts.robust_sdfstudio.robust_evaluator_plotter import RobustEvaluatorPlotter
+
+if TYPE_CHECKING:
+    from nerfstudio.robust.mask_evaluator import MaskEvaluatorResultKey
 
 CONSOLE = Console(width=120)
 
@@ -56,6 +59,7 @@ class RobustEvaluator:
             print(f"original dataset directory: {current_config.pipeline.datamanager.dataparser.data}")
             current_config.pipeline.datamanager.dataparser.data = current_config.pipeline.datamanager.dataparser.data.parent / "distracted"
             print(f"used dataset directory: {current_config.pipeline.datamanager.dataparser.data}")
+            current_config.pipeline.model.with_detailed_eval_of_combine_mode = True
 
         loaded_config, loaded_pipeline, checkpoint_path = eval_setup(config_path=self.load_config,
                                                                      override_config_func=override_config_func)
@@ -109,7 +113,7 @@ class RobustEvaluator:
                 )
             )))
 
-        percentile_values = [20, 40, 60, 80, 95, 99]
+        percentile_values = [20, 50, 80, 95, 99]
 
         for simple_percentile in percentile_values:
             configurations_setters.append(
@@ -157,10 +161,12 @@ class RobustEvaluator:
                 "plot_suffix": configurations_setter.name,
                 "mask_evaluator_results": {},
             }
-            print("output_collection.mask_evaluator_results_by_type",
-                  output_collection.mask_evaluator_results_by_type.keys())
-            for loss_type_name, mask_evaluator_results in output_collection.mask_evaluator_results_by_type.items():
-                print("****", loss_type_name, len(mask_evaluator_results))
+            print("output_collection.mask_evaluator_results_dict",
+                  output_collection.mask_evaluator_results_dict.keys())
+
+            mask_evaluator_result_key: MaskEvaluatorResultKey
+            for mask_evaluator_result_key, mask_evaluator_results in output_collection.mask_evaluator_results_dict.items():
+                print("****", mask_evaluator_result_key, len(mask_evaluator_results))
                 true_cleans_list = []
                 false_cleans_list = []
                 true_distractors_list = []
@@ -177,7 +183,13 @@ class RobustEvaluator:
                 print(f"{true_distractors_list=}")
                 print(f"{false_distractors_list=}")
 
-                output_for_configuration["mask_evaluator_results"][loss_type_name] = {
+                if mask_evaluator_result_key.robust_loss_combine_mode not in output_for_configuration[
+                    "mask_evaluator_results"]:
+                    output_for_configuration["mask_evaluator_results"][
+                        mask_evaluator_result_key.robust_loss_combine_mode] = {}
+
+                output_for_configuration["mask_evaluator_results"][mask_evaluator_result_key.robust_loss_combine_mode][
+                    mask_evaluator_result_key.loss_type_name] = {
                     "true_cleans_list": true_cleans_list,
                     "false_cleans_list": false_cleans_list,
                     "true_distractors_list": true_distractors_list,

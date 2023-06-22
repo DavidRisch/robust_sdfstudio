@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Dict, List
 from collections import defaultdict
 
 if TYPE_CHECKING:
-    from nerfstudio.robust.mask_evaluator import MaskEvaluatorResult
+    from nerfstudio.robust.mask_evaluator import MaskEvaluatorResult, MaskEvaluatorResultKey
 
 
 class OutputCollection:
@@ -13,7 +13,7 @@ class OutputCollection:
 
     def __init__(self):
         self.images_by_name: Dict[str, torch.Tensor] = {}
-        self.mask_evaluator_results_by_type: Dict[str, List[MaskEvaluatorResult]] = defaultdict(list)
+        self.mask_evaluator_results_dict: Dict[MaskEvaluatorResultKey, List[MaskEvaluatorResult]] = defaultdict(list)
 
     def add_image(self, name: str, step: int, image: torch.Tensor):
         name = f"{name}_step{step}"
@@ -23,8 +23,8 @@ class OutputCollection:
 
         self.images_by_name[name] = image
 
-    def add_mask_evaluator_result(self, loss_type_name: str, step: int,
+    def add_mask_evaluator_result(self, mask_evaluator_result_key: "MaskEvaluatorResultKey", step: int,
                                   mask_evaluator_result: "MaskEvaluatorResult"):
-        assert len(self.mask_evaluator_results_by_type[loss_type_name]) == step
+        assert len(self.mask_evaluator_results_dict[mask_evaluator_result_key]) == step
 
-        self.mask_evaluator_results_by_type[loss_type_name].append(mask_evaluator_result)
+        self.mask_evaluator_results_dict[mask_evaluator_result_key].append(mask_evaluator_result)

@@ -152,6 +152,8 @@ class SurfaceModelConfig(ModelConfig):
 
     robust_loss_combine_mode: str = "Off"
 
+    with_detailed_eval_of_combine_mode: bool = False
+
 
 class SurfaceModel(Model):
     """Base surface model
@@ -806,22 +808,41 @@ class SurfaceModel(Model):
                 log_group_names=[log_group_name, "30 before combine"],
                 log_losses=False, log_masks=True, log_loss_collection_ids=False, output_collection=output_collection)
 
+            # TODO: this should also be run for the normal percentile_* configuration
+            if self.config.with_detailed_eval_of_combine_mode:
+                if "rgb_distracted_mask" in batch:
+                    original_robust_loss_combine_mode = self.config.robust_loss_combine_mode
+                    log_group_id = 70
+                    for robust_loss_combine_mode in ["AnyDistracted", "AllDistracted", "Majority"]:
+                        self.config.robust_loss_combine_mode = robust_loss_combine_mode
+                        if len(batch["rgb_distracted_mask"].shape) == 1:
+                            # batch is unordered
+                            mask_evaluator_loss_collection = unordered_loss_collection_by_name["before_combine"]
+                        elif len(batch["rgb_distracted_mask"].shape) == 2:
+                            # batch is unordered
+                            mask_evaluator_loss_collection = sparse_spatial_loss_collection_by_name["before_combine"]
+                        else:
+                            assert False
+
+                        mask_evaluator_loss_collection = copy.deepcopy(mask_evaluator_loss_collection)
+                        mask_evaluator_loss_collection
+
+                        RobustLossMaskCombiner.maybe_combine_masks(loss_collection=mask_evaluator_loss_collection,
+                                                                   config=self.config,
+                                                                   device="cpu")
+
+                        MaskEvaluator.log_all_comparisons(loss_collection=mask_evaluator_loss_collection, batch=batch,
+                                                          log_group_names=[log_group_name,
+                                                                           f"{log_group_id} masks {robust_loss_combine_mode}"],
+                                                          step=step,
+                                                          output_collection=output_collection,
+                                                          robust_loss_combine_mode=robust_loss_combine_mode)
+
+                        log_group_id += 1
+
+                    self.config.robust_loss_combine_mode = original_robust_loss_combine_mode
+
         loss_collection_sparse_spatial_final = sparse_spatial_loss_collection_by_name["final"]
-
-        if "rgb_distracted_mask" in batch:
-            if len(batch["rgb_distracted_mask"].shape) == 1:
-                # batch is unordered
-                mask_evaluator_loss_collection = unordered_loss_collection_by_name["final"]
-            elif len(batch["rgb_distracted_mask"].shape) == 2:
-                # batch is unordered
-                mask_evaluator_loss_collection = loss_collection_sparse_spatial_final
-            else:
-                assert False
-
-            # TODO also run this during training?
-            MaskEvaluator.log_all_comparisons(loss_collection=mask_evaluator_loss_collection, batch=batch,
-                                              log_group_names=[log_group_name, "70 masks"], step=step,
-                                              output_collection=output_collection)
 
         self.log_pixelwise_loss_images_from_loss_collection(
             loss_collection_sparse_spatial_final, step,
