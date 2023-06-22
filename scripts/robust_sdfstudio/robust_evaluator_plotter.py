@@ -67,7 +67,7 @@ class RobustEvaluatorPlotter:
             if pattern != "" and not configuration_name.startswith(pattern):
                 continue
 
-            print(f"{data_for_configuration_dict=}")
+            # print(f"{data_for_configuration_dict=}")
             raw_values = data_for_configuration_dict[f"{confusion_name}s_list"]
             value = sum(raw_values) / len(raw_values)
             labels.append(configuration_name)
@@ -87,7 +87,7 @@ class RobustEvaluatorPlotter:
                                                plot_directory_path: Path):
 
         for loss_type_name, data_by_configuration_name in data_by_configuration_name_by_loss_type.items():
-            figure_name = f"mask_evaluator_{loss_type_name}_aggregated_{pattern_name}"
+            figure_name = f"mask_evaluator_{loss_type_name}_aggregated_bar_{pattern_name}"
 
             fig, axs = plt.subplots(2, 2, figsize=(18, 16))
             fig.suptitle(figure_name)
@@ -112,8 +112,68 @@ class RobustEvaluatorPlotter:
             fig.savefig(plot_directory_path / f"{figure_name}.png")
 
     @classmethod
+    def plot_aggregated_mask_evaluator_results_line_part(cls, confusion_name: str, data_by_configuration_name: Dict,
+                                                         pattern: str,
+                                                         ax: plt.axes.Axes):
+        labels: List[str] = []
+        y_values: List[float] = []
+
+        for configuration_name, data_for_configuration_dict in data_by_configuration_name.items():
+            if pattern != "" and not configuration_name.startswith(pattern):
+                continue
+
+            print(f"{data_for_configuration_dict=}")
+            raw_values = data_for_configuration_dict[f"{confusion_name}s_list"]
+            value = sum(raw_values) / len(raw_values)
+            labels.append(configuration_name)
+            y_values.append(value)
+
+        x_values: List[float] = []
+        for label in labels:
+            index = label.rfind("_")
+            percentile_str = label[index + 1:]
+            x_values.append(int(percentile_str))
+
+        ax.set_title(confusion_name)
+        ax.plot(
+            x_values,
+            y_values,
+        )
+        ax.set_xlim(0.0, 100.0)
+        ax.set_xlabel("average proportion of total")
+
+    @classmethod
+    def plot_aggregated_mask_evaluator_results_line(cls,
+                                                    data_by_configuration_name_by_loss_type: Dict[str, Dict[str, Any]],
+                                                    pattern_name: str, pattern: str,
+                                                    plot_directory_path: Path):
+
+        for loss_type_name, data_by_configuration_name in data_by_configuration_name_by_loss_type.items():
+            figure_name = f"mask_evaluator_{loss_type_name}_aggregated_line_{pattern_name}"
+
+            fig, axs = plt.subplots(2, 2, figsize=(18, 16))
+            fig.suptitle(figure_name)
+            fig.subplots_adjust(left=0.15,
+                                bottom=0.1,
+                                right=0.95,
+                                top=0.9,
+                                wspace=0.5,
+                                hspace=0.4)
+
+            for confusion_name, ax_index in [("true_clean", (0, 0)),
+                                             ("false_clean", (1, 0)),
+                                             ("true_distractor", (1, 1)),
+                                             ("false_distractor", (0, 1))]:
+                cls.plot_aggregated_mask_evaluator_results_line_part(confusion_name=confusion_name,
+                                                                     data_by_configuration_name=data_by_configuration_name,
+                                                                     pattern=pattern,
+                                                                     ax=axs[ax_index[0]][ax_index[1]])
+
+            fig.savefig(plot_directory_path / f"{figure_name}.png")
+
+    @classmethod
     def plot_for_configuration(cls, data_for_configuration_dict: Dict[str, Any], plot_directory_path: Path) -> None:
-        #print("data_for_configuration_dict", data_for_configuration_dict)
+        # print("data_for_configuration_dict", data_for_configuration_dict)
         plot_directory_path.mkdir(parents=True, exist_ok=True)
         cls.plot_mask_evaluator_results(
             mask_evaluator_results_by_loss_type_name=data_for_configuration_dict["mask_evaluator_results"],
@@ -126,22 +186,28 @@ class RobustEvaluatorPlotter:
         data_by_configuration_name_by_loss_type = defaultdict(lambda: defaultdict(dict))
 
         for configuration_name, data_for_configuration_dict in data_dict["configurations"].items():
+            # commented out for performance
             # cls.plot_for_configuration(data_for_configuration_dict=data_for_configuration_dict,
             #                           plot_directory_path=plot_directory_path)
 
             for loss_type_name, mask_evaluator_results in data_for_configuration_dict["mask_evaluator_results"].items():
                 data_by_configuration_name_by_loss_type[loss_type_name][configuration_name] = mask_evaluator_results
 
-        for pattern_name, pattern in [
-            ("all", ""),
-            ("percentile", "percentile_"),
-            ("kernel_percentile", "kernel_percentile_"),
-            ("kernel_patches_percentile", "kernel_patches_percentile_"),
+        for pattern_name, pattern, also_with_line_plot in [
+            ("all", "", False),
+            ("percentile", "percentile_", True),
+            ("kernel_percentile", "kernel_percentile_", True),
+            ("kernel_patches_percentile", "kernel_patches_percentile_", True),
         ]:
             cls.plot_aggregated_mask_evaluator_results(
                 data_by_configuration_name_by_loss_type=data_by_configuration_name_by_loss_type,
                 pattern_name=pattern_name, pattern=pattern,
                 plot_directory_path=plot_directory_path)
+            if also_with_line_plot:
+                cls.plot_aggregated_mask_evaluator_results_line(
+                    data_by_configuration_name_by_loss_type=data_by_configuration_name_by_loss_type,
+                    pattern_name=pattern_name, pattern=pattern,
+                    plot_directory_path=plot_directory_path)
 
     def main(self) -> None:
         with open(self.yaml_path, "r") as in_file:
