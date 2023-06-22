@@ -683,32 +683,64 @@ class SurfaceModel(Model):
 
         loss_collections_by_name: Dict[str, List[LossCollectionBase]] = defaultdict(list)
 
+        # These extract_* functions can use either original_flattened or original as input but have to return a flattened output
+        def extract_part_interlaced_columns(original_flattened: Tensor, original: Tensor, part_index: int) -> Tensor:
+            return original_flattened[part_index::part_count, ...]
 
-        def extract_part_interlaced_columns(original:Tensor, part_index:int) -> Tensor:
-            return original[part_index::part_count, ...]
+        def extract_part_thick_rows(original_flattened: Tensor, original: Tensor, part_index: int) -> Tensor:
+            return original_flattened[part_index * part_size: (part_index + 1) * part_size, ...]
 
-        def extract_part_thick_rows(original: Tensor, part_index: int) -> Tensor:
-            return original[part_index * part_size: (part_index + 1) * part_size, ...]
+        def extract_squares(original_flattened: Tensor, original: Tensor, part_index: int) -> Tensor:
+            # print_tensor("original", original)
 
-        # # TODO:
-        # def extract_part(original: Tensor, part_index: int) -> Tensor:
-        #     index_x = part_index % 2
-        #     index_y = part_index // 2
-        #
-        #     return original[part_index * part_size: (part_index + 1) * part_size, ...]
+            square_edge_length = 64
+            assert part_size == square_edge_length * square_edge_length
+            assert len(original.shape) >= 2, original.shape
+            square_count_x = original.shape[1] // square_edge_length
+            square_count_y = original.shape[0] // square_edge_length
+            assert square_count_x * square_edge_length == original.shape[1]
+            assert square_count_y * square_edge_length == original.shape[0]
+
+            index_x = part_index % square_count_x
+            index_y = part_index // square_count_x
+
+            part = original[index_y * square_edge_length: (index_y + 1) * square_edge_length,
+                   index_x * square_edge_length: (index_x + 1) * square_edge_length, ...]
+
+            # print_tensor("part", part)
+            if isinstance(part, RayBundle):
+                part = part.flatten()
+            elif isinstance(part, torch.Tensor):
+                part = torch.flatten(part, start_dim=0, end_dim=1)
+            else:
+                raise RuntimeError(f"Unexpected type: {type(part)}")
+            # print_tensor("part", part)
+
+            return part
 
         if self.does_loss_collection_need_to_be_dense_spatial():
-            extract_part = extract_part_thick_rows
+            extract_part = extract_squares
         else:
             extract_part = extract_part_interlaced_columns
 
         for part_index in range(part_count):
-            ray_bundle_part = extract_part(ray_bundle_flattened, part_index)
+            ray_bundle_part: RayBundle = extract_part(original_flattened=ray_bundle_flattened, original=ray_bundle,
+                                                      part_index=part_index)
             batch_part = {
-                key: extract_part(batch_flattened[key], part_index)
+                key: extract_part(original_flattened=batch_flattened[key], original=batch[key], part_index=part_index)
                 for key in relevant_key_of_batch
             }
             batch_part["image_is_spatial_and_contiguous"] = batch.get("image_is_spatial_and_contiguous", None)
+
+            # print_tensor("ray_bundle_part.directions", ray_bundle_part.directions)
+            assert len(ray_bundle_part.directions.shape) == 2 and ray_bundle_part.directions.shape[0] == part_size and \
+                   ray_bundle_part.directions.shape[1] == 3, ray_bundle_part.directions.shape
+            # print_tensor("batch_part pixel_coordinates_x", batch_part["pixel_coordinates_x"])
+            assert len(batch_part["pixel_coordinates_x"].shape) == 1 and batch_part["pixel_coordinates_x"].shape[0] \
+                   == part_size, batch_part["pixel_coordinates_x"].shape
+            # print_tensor("batch_part image", batch_part["image"])
+            assert len(batch_part["image"].shape) == 2 and batch_part["image"].shape[0] == part_size and \
+                   batch_part["image"].shape[1] == 3, batch_part["pixel_coordinates_x"].shape
 
             model_outputs = self(ray_bundle_part)
 
