@@ -65,12 +65,17 @@ class RobustLoss:
 
                 # print_tensor(f"{attribute_name} before convolution", old_value)
                 old_value = old_value.reshape((1, 1, height, width))
-                # print_tensor(f"{attribute_name} before convolution", old_value)
+                # print_tensor(f"reshaped", old_value)
 
-                modified_value = F.conv2d(input=old_value, weight=kernel, stride=1, padding="same")
+                pad_amount = size // 2
+                value_with_padding = torch.nn.ReplicationPad2d((pad_amount, pad_amount, pad_amount, pad_amount))(
+                    old_value)
+                # print_tensor(f"value_with_padding", value_with_padding)
+
+                modified_value = F.conv2d(input=value_with_padding, weight=kernel, stride=1, padding=0)
                 modified_value = (modified_value >= 0.5).float()
 
-                # print_tensor(f"{attribute_name} after convolution", modified_value)
+                # print_tensor(f"after convolution", modified_value)
                 modified_value = modified_value.reshape((height, width))
                 # print_tensor(f"{attribute_name} after convolution", modified_value)
 
