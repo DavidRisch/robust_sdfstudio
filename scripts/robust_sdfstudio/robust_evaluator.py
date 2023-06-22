@@ -64,9 +64,11 @@ class RobustEvaluator:
         experiment_output_directory_path = self.output_directory_path / loaded_config.experiment_name
         experiment_output_images_directory_path = experiment_output_directory_path / "images"
         experiment_output_config_path = experiment_output_directory_path / "output.yaml"
+        plot_directory_path: Path = experiment_output_directory_path / "plots"
 
         experiment_output_directory_path.mkdir(parents=True, exist_ok=True)
         experiment_output_images_directory_path.mkdir(parents=True, exist_ok=True)
+        plot_directory_path.mkdir(parents=True, exist_ok=True)
 
         output_dict = {
             "experiment_name": loaded_config.experiment_name,
@@ -202,9 +204,6 @@ class RobustEvaluator:
                              suffix=configurations_setter.name)
 
         CONSOLE.print(f"Saved rendering results to: {experiment_output_images_directory_path}")
-
-        plot_directory_path: Path = experiment_output_directory_path / "plots"
-        print(f"{plot_directory_path=}")
 
         RobustEvaluatorPlotter.plot_all(data_dict=output_dict, plot_directory_path=plot_directory_path)
 

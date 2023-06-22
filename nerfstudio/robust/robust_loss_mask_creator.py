@@ -57,7 +57,7 @@ class RobustLossMaskCreator:
                                   step=step)
 
         losses_history: List[torch.Tensor] = self.losses_history_by_loss_type[loss_type_name]
-        print(f"{len(losses_history)=}")
+        # print(f"{len(losses_history)=}")
 
         max_history_length = 32
         if len(losses_history) > max_history_length:
