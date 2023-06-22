@@ -346,7 +346,7 @@ class VanillaDataManager(DataManager):  # pylint: disable=abstract-method
     def create_eval_dataset(self) -> InputDataset:
         """Sets up the data loaders for evaluation"""
         split_name = self.test_split
-        if self.config.eval_dataset_split_name is not None:
+        if self.config.eval_dataset_split_name is not None and self.config.eval_dataset_split_name is not False:
             split_name = self.config.eval_dataset_split_name
 
         return GeneralizedDataset(
