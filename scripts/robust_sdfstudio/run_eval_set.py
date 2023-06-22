@@ -54,9 +54,9 @@ def prepare_run(run_config: RunConfig) -> List[str]:
         # "--logging.local-writer.max-log-size", "0",
         "--pipeline.datamanager.train_num_rays_per_batch", str(4096),
         "--pipeline.datamanager.eval_num_rays_per_batch", str(4096),
-        "--trainer.steps-per-eval-image", str(100),
+        "--trainer.steps-per-eval-image", str(500),
         "--trainer.steps-per-save", str(1000),
-        "--trainer.max_num_iterations", str(5001),
+        "--trainer.max_num_iterations", str(10001),
         "--pipeline.model.mono_depth_loss_mult", str(0.05),
         "--pipeline.model.mono_normal_loss_mult", str(0.05),
         "--pipeline.datamanager.sample_large_image_patches", str(run_config.sample_large_image_patches),
@@ -114,7 +114,9 @@ def main():
                                          dataset_kind=dataset_kind,
                                          resolution=resolution,
                                          use_gt_or_omnidata_maps="gt",
-                                         sample_large_image_patches=False))
+                                         sample_large_image_patches=False,
+                                         robust_config=RobustConfig(
+                                         )))
 
     for dataset_kind in ["distracted"]:
         for resolution in [128]:
