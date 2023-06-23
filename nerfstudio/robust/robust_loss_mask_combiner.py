@@ -15,7 +15,9 @@ class RobustLossMaskCombiner:
 
     @classmethod
     def combine(cls, loss_collection: LossCollectionDenseSpatial, distracted_votes_required_for_distracted_result: int,
-                device: torch.device):
+                device: torch.device,
+                rgb_essential: bool = False
+                ):
         clean_votes = torch.zeros_like(loss_collection.rgb_mask, device=device)
 
         # print_tensor("before combine rgb", loss_collection.rgb_mask)
@@ -31,6 +33,9 @@ class RobustLossMaskCombiner:
 
         new_distracted_mask = (distracted_votes >= distracted_votes_required_for_distracted_result).float()
         new_clean_mask = torch.logical_not(new_distracted_mask).float()
+
+        if rgb_essential:
+            new_clean_mask = torch.logical_and(new_clean_mask, loss_collection.rgb_mask).float()
 
         # print_tensor("new_clean_mask", new_clean_mask)
 
@@ -53,6 +58,10 @@ class RobustLossMaskCombiner:
                         device=device)
         elif config.robust_loss_combine_mode == "Majority":  # a pixel if distracted, if *most* of the components are distracted
             cls.combine(loss_collection=loss_collection, distracted_votes_required_for_distracted_result=2,
+                        device=device)
+        elif config.robust_loss_combine_mode == "RgbEssential":  # a pixel if distracted, if 2 components are distracted or if rgb is distracted
+            cls.combine(loss_collection=loss_collection, distracted_votes_required_for_distracted_result=2,
+                        rgb_essential=True,
                         device=device)
         else:
             raise RuntimeError("Unknown value for robust_loss_combine_mode: " + config.robust_loss_combine_mode)
