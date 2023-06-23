@@ -154,6 +154,9 @@ class SurfaceModelConfig(ModelConfig):
 
     with_detailed_eval_of_combine_mode: bool = False
 
+    depth_loss_name: str = "ScaleAndShiftInvariantLoss"
+    """Which dept hloss to Use: 'ScaleAndShiftInvariantLoss' or 'L1Loss' """
+
 
 class SurfaceModel(Model):
     """Base surface model
@@ -249,8 +252,16 @@ class SurfaceModel(Model):
         self.eikonal_loss = MSELoss()
         depth_loss_alpha = 0.5
         depth_loss_alpha = 0  # TODO: gradient_loss does not work with pixelweise yet
-        self.depth_loss = ScaleAndShiftInvariantLoss(alpha=depth_loss_alpha, scales=1)
-        self.depth_loss_pixelwise = ScaleAndShiftInvariantLoss(alpha=depth_loss_alpha, scales=1, reduction="none")
+
+        if self.config.depth_loss_name == "ScaleAndShiftInvariantLoss":
+            self.depth_loss = ScaleAndShiftInvariantLoss(alpha=depth_loss_alpha, scales=1)
+            self.depth_loss_pixelwise = ScaleAndShiftInvariantLoss(alpha=depth_loss_alpha, scales=1, reduction="none")
+        elif self.config.depth_loss_name == "L1Loss":
+            self.depth_loss = L1Loss()
+            self.depth_loss_pixelwise = L1Loss(reduction="none")
+        else:
+            raise RuntimeError(f"Invalid value for depth_loss_name: {self.config.depth_loss_name}")
+
         self.patch_loss = MultiViewLoss(
             patch_size=self.config.patch_size, topk=self.config.topk, min_patch_variance=self.config.min_patch_variance
         )
@@ -449,9 +460,18 @@ class SurfaceModel(Model):
             loss_collection.valid_depth_pixel_count = torch.sum(mask)
             # print("valid_depth_pixel_count", loss_collection.valid_depth_pixel_count)
 
-            pixelwise_depth_loss = self.depth_loss_pixelwise(depth_image_pred_reshaped,
-                                                             depth_image_gt_reshaped_scaled_and_shifted,
-                                                             mask)
+            if isinstance(self.depth_loss_pixelwise, ScaleAndShiftInvariantLoss):
+                pixelwise_depth_loss = self.depth_loss_pixelwise(depth_image_pred_reshaped,
+                                                                 depth_image_gt_reshaped_scaled_and_shifted,
+                                                                 mask)
+            elif isinstance(self.depth_loss_pixelwise, L1Loss):
+                pixelwise_depth_loss = self.depth_loss_pixelwise(depth_image_pred_reshaped,
+                                                                 depth_image_gt_reshaped_scaled_and_shifted)
+                # print_tensor("pixelwise_depth_loss", pixelwise_depth_loss)
+                pixelwise_depth_loss[torch.logical_not(mask)] = 0
+                # print_tensor("pixelwise_depth_loss", pixelwise_depth_loss)
+            else:
+                raise RuntimeError(f"Enexpected type of self.depth_loss_pixelwise: {type(self.depth_loss_pixelwise)}")
             loss_collection.pixelwise_depth_loss = pixelwise_depth_loss.flatten()
 
         assert isinstance(loss_collection, LossCollectionUnordered)
