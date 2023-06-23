@@ -407,7 +407,8 @@ class SurfaceModel(Model):
         return (
                 self.config.robust_loss_kernel_name != "NoKernel" or
                 self.config.robust_loss_classify_patches_mode != "Off" or
-                self.config.robust_loss_combine_mode != "Off"
+                self.config.robust_loss_combine_mode != "Off" or
+                self.config.with_detailed_eval_of_combine_mode
         )
 
     def get_loss_collection(self, outputs: Dict, batch: Dict, pixel_coordinates_x: TensorType[...] = None,
@@ -808,7 +809,6 @@ class SurfaceModel(Model):
                 log_group_names=[log_group_name, "30 before combine"],
                 log_losses=False, log_masks=True, log_loss_collection_ids=False, output_collection=output_collection)
 
-            # TODO: this should also be run for the normal percentile_* configuration
             if self.config.with_detailed_eval_of_combine_mode:
                 if "rgb_distracted_mask" in batch:
                     original_robust_loss_combine_mode = self.config.robust_loss_combine_mode
