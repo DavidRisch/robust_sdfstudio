@@ -48,9 +48,12 @@ def collate_image_dataset_batch_large_patch(batch: Dict, num_rays_per_batch: int
 
     image_index = random.randint(0, num_images - 1)
 
-    # TODO: set based on batch size so this also works for 512x512 images
-    patch_width = image_width // 2
-    patch_height = image_height // 2
+    # TODO: set based on batch size
+    patch_width = 64
+    patch_height = 64
+
+    assert patch_width == patch_height
+    assert patch_width * patch_height == num_rays_per_batch
 
     indices_tuple = torch.meshgrid(
         torch.LongTensor([image_index]),
@@ -65,9 +68,16 @@ def collate_image_dataset_batch_large_patch(batch: Dict, num_rays_per_batch: int
     ))
 
     assert image_width == image_height
-    offset_options = [0, image_width // 4, image_width // 2]
-    patch_x_offset = random.choice(offset_options)
-    patch_y_offset = random.choice(offset_options)
+    full_patch_count = image_width // patch_width
+    # print(f"{full_patch_count=}")
+    assert image_width == full_patch_count * patch_width
+    patch_count_with_half_positions = full_patch_count + (full_patch_count - 1)
+    # print(f"{patch_count_with_half_positions=}")
+
+    patch_x_offset_index = random.randrange(0, patch_count_with_half_positions)
+    patch_y_offset_index = random.randrange(0, patch_count_with_half_positions)
+    patch_x_offset = patch_x_offset_index * (patch_width // 2)
+    patch_y_offset = patch_y_offset_index * (patch_width // 2)
 
     # print(f"{patch_x_offset=} {patch_y_offset=}")
 
