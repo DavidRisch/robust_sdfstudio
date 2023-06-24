@@ -89,7 +89,7 @@ class LossCollectionUnordered(LossCollectionBase):
 
         spatial_loss_collection.valid_depth_pixel_count = self.valid_depth_pixel_count
 
-    def make_into_dense_spatial(self, device: torch.device) -> LossCollectionSpatialBase:
+    def make_into_dense_spatial(self, device: torch.device) -> LossCollectionDenseSpatial:
         x_min = torch.min(self.pixel_coordinates_x).item()
         x_max = torch.max(self.pixel_coordinates_x).item()
         y_min = torch.min(self.pixel_coordinates_y).item()

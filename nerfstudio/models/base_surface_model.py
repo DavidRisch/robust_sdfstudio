@@ -747,13 +747,18 @@ class SurfaceModel(Model):
             extract_part = extract_part_interlaced_columns
 
         for part_index in range(part_count):
-            ray_bundle_part: RayBundle = extract_part(original_flattened=ray_bundle_flattened, original=ray_bundle,
-                                                      part_index=part_index)
-            batch_part = {
-                key: extract_part(original_flattened=batch_flattened[key], original=batch[key], part_index=part_index)
-                for key in relevant_key_of_batch
-            }
-            batch_part["image_is_spatial_and_contiguous"] = batch.get("image_is_spatial_and_contiguous", None)
+            if part_count == 1:
+                ray_bundle_part = ray_bundle_flattened
+                batch_part = batch
+            else:
+                ray_bundle_part: RayBundle = extract_part(original_flattened=ray_bundle_flattened, original=ray_bundle,
+                                                          part_index=part_index)
+                batch_part = {
+                    key: extract_part(original_flattened=batch_flattened[key], original=batch[key],
+                                      part_index=part_index)
+                    for key in relevant_key_of_batch
+                }
+                batch_part["image_is_spatial_and_contiguous"] = batch.get("image_is_spatial_and_contiguous", None)
 
             # print_tensor("ray_bundle_part.directions", ray_bundle_part.directions)
             assert len(ray_bundle_part.directions.shape) == 2 and ray_bundle_part.directions.shape[0] == part_size and \
