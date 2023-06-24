@@ -11,7 +11,7 @@ from scripts.robust_sdfstudio.robust_config import RobustConfig
 
 dataset_base_path = os.environ["DATASET_BASE_DIR"]
 print(f"{dataset_base_path=}")
-dataset_name = "distracted_dataset_v7"
+dataset_name = "distracted_dataset_v8"
 print(f"{dataset_name=}")
 own_dataset_path = os.path.join(dataset_base_path, dataset_name)
 print(f"{own_dataset_path=}")
@@ -22,13 +22,14 @@ train_script_path = os.path.join(repo_root, "scripts/train.py")
 print(f"{train_script_path=}")
 
 # this should be incremented whenever anything is changed anywhere which could change the results
-eval_set_version = 7
+eval_set_version = 9
 
 
 class RunConfig:
     def __init__(self, name: str, dataset_kind: str, resolution: int,
                  use_gt_or_omnidata_maps: str,
                  sample_large_image_patches: bool,
+                 depth_loss_name: str,
                  robust_config: RobustConfig,
                  ):
         self.name = name
@@ -36,6 +37,7 @@ class RunConfig:
         self.resolution = resolution
         self.use_gt_or_omnidata_maps = use_gt_or_omnidata_maps
         self.sample_large_image_patches = sample_large_image_patches
+        self.depth_loss_name = depth_loss_name
         self.robust_config = robust_config
 
 
@@ -63,6 +65,8 @@ def prepare_run(run_config: RunConfig) -> List[str]:
         "--pipeline.model.robust_loss_kernel_name", run_config.robust_config.robust_loss_kernel_name,
         "--pipeline.model.robust_loss_classify_patches_mode",
         run_config.robust_config.robust_loss_classify_patches_mode,
+        "--pipeline.model.depth_loss_name",
+        run_config.depth_loss_name,
     ]
 
     if run_config.robust_config.use_gt_distracted_mask:
@@ -86,7 +90,7 @@ def prepare_run(run_config: RunConfig) -> List[str]:
         "--data", data_path,
         "--include_mono_prior", "True",
         "--include_foreground_mask", "False",
-        "--max-train-image-count", str(25),
+        "--max-train-image-count", str(60),
         "--use_gt_or_omnidata_maps", run_config.use_gt_or_omnidata_maps
     ]
 
@@ -115,19 +119,23 @@ def main():
                                          resolution=resolution,
                                          use_gt_or_omnidata_maps="gt",
                                          sample_large_image_patches=False,
+                                         depth_loss_name="L1Loss",
                                          robust_config=RobustConfig(
                                          )))
+    if False:
+        for dataset_kind in ["distracted"]:
+            for resolution in [128]:
+                run_configs.append(RunConfig("gtDistractedMask",
+                                             dataset_kind=dataset_kind,
+                                             resolution=resolution,
+                                             use_gt_or_omnidata_maps="gt",
+                                             sample_large_image_patches=False,
+                                             depth_loss_name="L1Loss",
+                                             robust_config=RobustConfig(
+                                                 use_gt_distracted_mask=True
+                                             )))
 
-    for dataset_kind in ["distracted"]:
-        for resolution in [128]:
-            run_configs.append(RunConfig("gtDistractedMask",
-                                         dataset_kind=dataset_kind,
-                                         resolution=resolution,
-                                         use_gt_or_omnidata_maps="gt",
-                                         sample_large_image_patches=False,
-                                         robust_config=RobustConfig(
-                                             use_gt_distracted_mask=True
-                                         )))
+    simple_percentile = 75.0
 
     for dataset_kind in ["distracted"]:
         for resolution in [128, 512]:
@@ -136,8 +144,9 @@ def main():
                                          resolution=resolution,
                                          use_gt_or_omnidata_maps="gt",
                                          sample_large_image_patches=False,
+                                         depth_loss_name="L1Loss",
                                          robust_config=RobustConfig(
-                                             simple_percentile=90.0
+                                             simple_percentile=simple_percentile
                                          )))
 
     for dataset_kind in ["distracted"]:
@@ -147,9 +156,10 @@ def main():
                                          resolution=resolution,
                                          use_gt_or_omnidata_maps="gt",
                                          sample_large_image_patches=True,
+                                         depth_loss_name="L1Loss",
                                          robust_config=RobustConfig(
                                              robust_loss_kernel_name="Box_5x5",
-                                             simple_percentile=90.0
+                                             simple_percentile=simple_percentile
                                          )))
 
     for dataset_kind in ["distracted"]:
@@ -159,10 +169,11 @@ def main():
                                          resolution=resolution,
                                          use_gt_or_omnidata_maps="gt",
                                          sample_large_image_patches=True,
+                                         depth_loss_name="L1Loss",
                                          robust_config=RobustConfig(
                                              robust_loss_kernel_name="Box_5x5",
                                              robust_loss_classify_patches_mode="A",
-                                             simple_percentile=90.0
+                                             simple_percentile=simple_percentile
                                          )))
 
     run_arguments: List[List[str]] = []
