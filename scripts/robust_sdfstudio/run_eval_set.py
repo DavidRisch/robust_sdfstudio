@@ -163,7 +163,7 @@ def main():
                                          )))
 
     for dataset_kind in ["distracted"]:
-        for resolution in [128]:
+        for resolution in [128, 512]:
             run_configs.append(RunConfig("kernelPatchesA",
                                          dataset_kind=dataset_kind,
                                          resolution=resolution,
