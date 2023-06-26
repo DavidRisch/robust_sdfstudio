@@ -838,7 +838,12 @@ class SurfaceModel(Model):
                 if "rgb_distracted_mask" in batch:
                     original_robust_loss_combine_mode = self.config.robust_loss_combine_mode
                     log_group_id = 70
-                    for robust_loss_combine_mode in ["AnyDistracted", "AllDistracted", "Majority", "RgbEssential"]:
+                    for robust_loss_combine_mode in [
+                        "AnyDistracted",
+                        "AllDistracted",
+                        "Majority",
+                        # TODO: commented out for midterm_2: "RgbEssential",
+                    ]:
                         self.config.robust_loss_combine_mode = robust_loss_combine_mode
                         if len(batch["rgb_distracted_mask"].shape) == 1:
                             # batch is unordered

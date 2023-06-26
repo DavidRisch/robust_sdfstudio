@@ -102,9 +102,10 @@ class RobustEvaluator:
 
             return set_func
 
-        configurations_setters.append(ConfigurationsSetter("default", create_configuration_setter_func(
-            RobustConfig()
-        )))
+        if False:  # TODO: disabled for midterm_2
+            configurations_setters.append(ConfigurationsSetter("default", create_configuration_setter_func(
+                RobustConfig()
+            )))
 
         configurations_setters.append(
             ConfigurationsSetter(f"gt_distracted_mask", create_configuration_setter_func(
@@ -113,24 +114,28 @@ class RobustEvaluator:
                 )
             )))
 
-        percentile_values = [20, 50, 80, 95, 99]
+        # for plots:
+        percentile_values = [10, 20, 30, 40, 50, 60, 70, 80, 95, 99]
+        # for mask figurs
+        percentile_values = [50, 60, 70, 80]
 
-        for simple_percentile in percentile_values:
-            configurations_setters.append(
-                ConfigurationsSetter(f"percentile_{simple_percentile}", create_configuration_setter_func(
-                    RobustConfig(
-                        simple_percentile=simple_percentile,
-                    )
-                )))
+        if False:  # TODO: disabled for midterm_2
+            for simple_percentile in percentile_values:
+                configurations_setters.append(
+                    ConfigurationsSetter(f"percentile_{simple_percentile}", create_configuration_setter_func(
+                        RobustConfig(
+                            simple_percentile=simple_percentile,
+                        )
+                    )))
 
-        for simple_percentile in percentile_values:
-            configurations_setters.append(
-                ConfigurationsSetter(f"kernel_percentile_{simple_percentile}", create_configuration_setter_func(
-                    RobustConfig(  #
-                        robust_loss_kernel_name="Box_5x5",
-                        simple_percentile=simple_percentile,
-                    )
-                )))
+            for simple_percentile in percentile_values:
+                configurations_setters.append(
+                    ConfigurationsSetter(f"kernel_percentile_{simple_percentile}", create_configuration_setter_func(
+                        RobustConfig(  #
+                            robust_loss_kernel_name="Box_5x5",
+                            simple_percentile=simple_percentile,
+                        )
+                    )))
 
         for simple_percentile in percentile_values:
             configurations_setters.append(

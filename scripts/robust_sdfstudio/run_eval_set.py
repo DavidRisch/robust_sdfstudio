@@ -22,7 +22,7 @@ train_script_path = os.path.join(repo_root, "scripts/train.py")
 print(f"{train_script_path=}")
 
 # this should be incremented whenever anything is changed anywhere which could change the results
-eval_set_version = 9
+eval_set_version = 10
 
 
 class RunConfig:
@@ -58,7 +58,7 @@ def prepare_run(run_config: RunConfig) -> List[str]:
         "--pipeline.datamanager.eval_num_rays_per_batch", str(4096),
         "--trainer.steps-per-eval-image", str(500),
         "--trainer.steps-per-save", str(1000),
-        "--trainer.max_num_iterations", str(10001),
+        "--trainer.max_num_iterations", str(5001),
         "--pipeline.model.mono_depth_loss_mult", str(0.05),
         "--pipeline.model.mono_normal_loss_mult", str(0.05),
         "--pipeline.datamanager.sample_large_image_patches", str(run_config.sample_large_image_patches),
@@ -113,7 +113,7 @@ def main():
     run_configs = []
 
     for dataset_kind in ["clean", "distracted"]:
-        for resolution in [512]:
+        for resolution in [128, 512]:
             run_configs.append(RunConfig("baseline",
                                          dataset_kind=dataset_kind,
                                          resolution=resolution,
@@ -185,7 +185,7 @@ def main():
         (index, arguments) for (index, arguments) in enumerate(run_arguments)
     ]
 
-    # run_arguments_with_index = run_arguments_with_index[3:]
+    # run_arguments_with_index = run_arguments_with_index[0:1]
 
     for index, arguments in run_arguments_with_index:
         print()

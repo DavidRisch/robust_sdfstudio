@@ -27,6 +27,7 @@ class RobustLossMaskCreator:
         }
 
     def reset_history(self):
+        # print("reset_history", len(self.losses_history_by_loss_type["rgb"]))
         for key in self.losses_history_by_loss_type:
             self.losses_history_by_loss_type[key] = []
 
@@ -105,22 +106,23 @@ class RobustLossMaskCreator:
     def maybe_create_loss_masks_from_losses(self, loss_collection: LossCollectionUnordered,
                                             config: "SurfaceModelConfig", step: Optional[int]) -> None:
 
-        # print_tensor("apply rgb_distracted_mask before", loss_collection.rgb_mask)
-        if config.rgb_mask_from_percentile_of_rgb_loss != -1.0:
-            assert not config.use_rgb_distracted_mask_for_rgb_loss_mask
-            loss_collection.rgb_mask = self._create_loss_mask_from_loss(
-                loss=loss_collection.pixelwise_rgb_loss, loss_type_name="rgb",
-                percentile=config.rgb_mask_from_percentile_of_rgb_loss, step=step,
-            )
-        if config.normal_mask_from_percentile_of_normal_loss != -1.0:
-            assert not config.use_normal_distracted_mask_for_normal_loss_mask
-            loss_collection.normal_mask = self._create_loss_mask_from_loss(
-                loss=loss_collection.get_pixelwise_normal_loss(), loss_type_name="normal",
-                percentile=config.normal_mask_from_percentile_of_normal_loss, step=step,
-            )
-        if config.depth_mask_from_percentile_of_depth_loss != -1.0:
-            assert not config.use_depth_distracted_mask_for_depth_loss_mask
-            loss_collection.depth_mask = self._create_loss_mask_from_loss(
-                loss=loss_collection.pixelwise_depth_loss, loss_type_name="depth",
-                percentile=config.depth_mask_from_percentile_of_depth_loss, step=step,
-            )
+        for _ in range(5):
+            # print_tensor("apply rgb_distracted_mask before", loss_collection.rgb_mask)
+            if config.rgb_mask_from_percentile_of_rgb_loss != -1.0:
+                assert not config.use_rgb_distracted_mask_for_rgb_loss_mask
+                loss_collection.rgb_mask = self._create_loss_mask_from_loss(
+                    loss=loss_collection.pixelwise_rgb_loss, loss_type_name="rgb",
+                    percentile=config.rgb_mask_from_percentile_of_rgb_loss, step=step,
+                )
+            if config.normal_mask_from_percentile_of_normal_loss != -1.0:
+                assert not config.use_normal_distracted_mask_for_normal_loss_mask
+                loss_collection.normal_mask = self._create_loss_mask_from_loss(
+                    loss=loss_collection.get_pixelwise_normal_loss(), loss_type_name="normal",
+                    percentile=config.normal_mask_from_percentile_of_normal_loss, step=step,
+                )
+            if config.depth_mask_from_percentile_of_depth_loss != -1.0:
+                assert not config.use_depth_distracted_mask_for_depth_loss_mask
+                loss_collection.depth_mask = self._create_loss_mask_from_loss(
+                    loss=loss_collection.pixelwise_depth_loss, loss_type_name="depth",
+                    percentile=config.depth_mask_from_percentile_of_depth_loss, step=step,
+                )
