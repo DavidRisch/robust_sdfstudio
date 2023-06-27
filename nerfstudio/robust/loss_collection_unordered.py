@@ -19,7 +19,7 @@ class LossCollectionUnordered(LossCollectionBase):
         super().__init__()
 
     @classmethod
-    def from_combination(cls, loss_collections: List["LossCollectionUnordered"]) -> "LossCollectionUnordered":
+    def from_combination(cls, loss_collections: List["LossCollectionUnordered"], batch) -> "LossCollectionUnordered":
         combined_loss_collection = cls()
 
         for index, loss_collection in enumerate(loss_collections):
@@ -27,16 +27,21 @@ class LossCollectionUnordered(LossCollectionBase):
             # print("....pixel_coordinates_y", loss_collection.pixel_coordinates_y)
             loss_collection.loss_collection_id = torch.ones_like(loss_collection.pixelwise_rgb_loss,
                                                                  dtype=torch.long) * index
-
         for attribute_name in combined_loss_collection.tensor_attribute_names:
-            combined_value = torch.cat([
-                getattr(loss_collection, attribute_name)
-                for loss_collection in loss_collections
-            ], dim=0)
-            setattr(combined_loss_collection, attribute_name, combined_value)
-
-        combined_loss_collection.valid_depth_pixel_count = sum(
-            [loss_collection.valid_depth_pixel_count for loss_collection in loss_collections])
+            checker = True
+            for loss_collection in loss_collections:
+                value_test =  getattr(loss_collection, attribute_name)
+                if value_test is None:
+                    checker = False
+            if checker:
+                combined_value = torch.cat([
+                    getattr(loss_collection, attribute_name)
+                    for loss_collection in loss_collections
+                ], dim=0)
+                setattr(combined_loss_collection, attribute_name, combined_value)
+            if "depth" in batch:
+                combined_loss_collection.valid_depth_pixel_count = sum(
+                [loss_collection.valid_depth_pixel_count for loss_collection in loss_collections])
 
         return combined_loss_collection
 
