@@ -447,6 +447,14 @@ class SurfaceModel(Model):
             loss_collection.pixelwise_normal_l1 = monosdf_normal_loss_pixelwise_l1(normal_image_pred, normal_image_gt)
             loss_collection.pixelwise_normal_cos = monosdf_normal_loss_pixelwise_cos(normal_image_pred, normal_image_gt)
 
+            # normal values of 0 mean no normal because there is nothing at this pixel, so there should be no normal loss
+            mask = torch.logical_and(torch.logical_and(normal_image_gt[..., 0] != 0.0, normal_image_gt[..., 1] != 0.0),
+                                     normal_image_gt[..., 2] != 0.0)
+            # print_tensor("normal missing values mask", mask)
+
+            loss_collection.pixelwise_normal_l1[torch.logical_not(mask)] = 0
+            loss_collection.pixelwise_normal_cos[torch.logical_not(mask)] = 0
+
         if "depth" in batch and self.config.mono_depth_loss_mult > 0.0:
             # TODO check it's true that's we sample from only a single image
             # TODO only supervised pixel that hit the surface and remove hard-coded scaling for depth
@@ -456,7 +464,8 @@ class SurfaceModel(Model):
             depth_image_gt_reshaped_scaled_and_shifted = (depth_image_gt * 50 + 0.5).reshape(1, 32, -1)
             depth_image_pred_reshaped = depth_image_pred.reshape(1, 32, -1)
 
-            mask = torch.ones_like(depth_image_gt).reshape(1, 32, -1).bool()
+            # depth values of 0 mean no depth because there is nothing at this pixel
+            mask = (depth_image_gt.reshape(1, 32, -1) != 0.0)
             loss_collection.valid_depth_pixel_count = torch.sum(mask)
             # print("valid_depth_pixel_count", loss_collection.valid_depth_pixel_count)
 
@@ -467,9 +476,10 @@ class SurfaceModel(Model):
             elif isinstance(self.depth_loss_pixelwise, L1Loss):
                 pixelwise_depth_loss = self.depth_loss_pixelwise(depth_image_pred_reshaped,
                                                                  depth_image_gt_reshaped_scaled_and_shifted)
-                # print_tensor("pixelwise_depth_loss", pixelwise_depth_loss)
+                # print_tensor("pixelwise_depth_loss before missing values mask", pixelwise_depth_loss)
+                # print_tensor("depth missing values mask", mask)
                 pixelwise_depth_loss[torch.logical_not(mask)] = 0
-                # print_tensor("pixelwise_depth_loss", pixelwise_depth_loss)
+                # print_tensor("pixelwise_depth_loss after missing values mask", pixelwise_depth_loss)
             else:
                 raise RuntimeError(f"Enexpected type of self.depth_loss_pixelwise: {type(self.depth_loss_pixelwise)}")
             loss_collection.pixelwise_depth_loss = pixelwise_depth_loss.flatten()
