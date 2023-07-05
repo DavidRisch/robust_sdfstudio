@@ -11,7 +11,7 @@ from scripts.robust_sdfstudio.robust_config import RobustConfig
 
 dataset_base_path = os.environ["DATASET_BASE_DIR"]
 print(f"{dataset_base_path=}")
-dataset_name = "distracted_dataset_v8"
+dataset_name = "distracted_dataset_v11"
 print(f"{dataset_name=}")
 own_dataset_path = os.path.join(dataset_base_path, dataset_name)
 print(f"{own_dataset_path=}")
@@ -22,7 +22,7 @@ train_script_path = os.path.join(repo_root, "scripts/train.py")
 print(f"{train_script_path=}")
 
 # this should be incremented whenever anything is changed anywhere which could change the results
-eval_set_version = 11
+eval_set_version = 14
 
 
 class RunConfig:
@@ -59,7 +59,7 @@ def prepare_run(run_config: RunConfig) -> List[str]:
         "--trainer.steps-per-eval-image", str(500),
         "--trainer.steps-per-save", str(1000),
         "--trainer.save_only_latest_checkpoint", str(False),  # keep all checkpoints
-        "--trainer.max_num_iterations", str(5001),
+        "--trainer.max_num_iterations", str(10001),
         "--pipeline.model.mono_depth_loss_mult", str(0.05),
         "--pipeline.model.mono_normal_loss_mult", str(0.05),
         "--pipeline.datamanager.sample_large_image_patches", str(run_config.sample_large_image_patches),
@@ -186,7 +186,7 @@ def main():
         (index, arguments) for (index, arguments) in enumerate(run_arguments)
     ]
 
-    # run_arguments_with_index = run_arguments_with_index[0:1]
+    run_arguments_with_index = run_arguments_with_index[0:1]
 
     for index, arguments in run_arguments_with_index:
         print()
