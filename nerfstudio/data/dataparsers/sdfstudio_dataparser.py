@@ -475,6 +475,21 @@ class SDFStudio(DataParser):
                            "depth_distracted_masks": depth_distracted_masks,
                            "normal_distracted_masks": normal_distracted_masks},
             }
+            for mask_name, distracted_masks in [
+                ("rgb", rgb_distracted_masks),
+                ("depth", depth_distracted_masks),
+                ("normal", normal_distracted_masks),
+            ]:
+                clean_pixel_count = 0
+                distracted_pixel_count = 0
+                for distracted_mask in distracted_masks:
+                    clean_pixel_count += torch.sum(torch.logical_not(distracted_mask))
+                    distracted_pixel_count += torch.sum(distracted_mask)
+
+                total_pixel_count = clean_pixel_count + distracted_pixel_count
+                # print(f"{clean_pixel_count=}  {distracted_pixel_count=}  {total_pixel_count=}")
+                print(f"distracted mask for {mask_name} is"
+                      f" {100 * clean_pixel_count / total_pixel_count}% clean and {100 * distracted_pixel_count / total_pixel_count}% distracted")
 
         dataparser_outputs = DataparserOutputs(
             image_filenames=image_filenames,
@@ -484,4 +499,7 @@ class SDFStudio(DataParser):
             depths=depth_images,
             normals=normal_images,
         )
+
+        exit(45)
+
         return dataparser_outputs
