@@ -489,7 +489,7 @@ class SDFStudio(DataParser):
                 total_pixel_count = clean_pixel_count + distracted_pixel_count
                 # print(f"{clean_pixel_count=}  {distracted_pixel_count=}  {total_pixel_count=}")
                 print(f"distracted mask for {mask_name} is"
-                      f" {100 * clean_pixel_count / total_pixel_count}% clean and {100 * distracted_pixel_count / total_pixel_count}% distracted")
+                      f" {100 * clean_pixel_count / total_pixel_count:.3f}% clean and {100 * distracted_pixel_count / total_pixel_count:.3f}% distracted")
 
         dataparser_outputs = DataparserOutputs(
             image_filenames=image_filenames,
@@ -499,7 +499,5 @@ class SDFStudio(DataParser):
             depths=depth_images,
             normals=normal_images,
         )
-
-        exit(45)
 
         return dataparser_outputs
