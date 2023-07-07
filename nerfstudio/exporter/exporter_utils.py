@@ -152,7 +152,11 @@ def generate_point_cloud(
                     CONSOLE.print(f"Please set --normal_output_name to one of: {outputs.keys()}", justify="center")
                     sys.exit(1)
                 normal = outputs[normal_output_name]
-            point = ray_bundle.origins + ray_bundle.directions * depth
+
+            # We need the distance of each point from the camera *not* the depth (distance only along the optical axis)
+            distance = depth * ray_bundle.directions_norm
+
+            point = ray_bundle.origins + ray_bundle.directions * distance
 
             if use_bounding_box:
                 comp_l = torch.tensor(bounding_box_min, device=point.device)
