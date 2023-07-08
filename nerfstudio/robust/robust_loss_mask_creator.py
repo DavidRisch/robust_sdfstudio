@@ -62,10 +62,10 @@ class RobustLossMaskCreator:
 
         max_history_length = 32
         if len(losses_history) > max_history_length:
-            losses_history.pop(0)
+            losses_history.pop()  # remove last (= oldest) element of list
             assert len(losses_history) == max_history_length
 
-        losses_history.insert(0, sorted_loss_values)
+        losses_history.insert(0, sorted_loss_values)  # add to start of list
 
         loss_history = torch.cat(losses_history, dim=0)
         stable_loss_cutoff = torch.quantile(loss_history, q=percentile / 100.0, interpolation="nearest").item()
