@@ -22,7 +22,7 @@ train_script_path = os.path.join(repo_root, "scripts/train.py")
 print(f"{train_script_path=}")
 
 # this should be incremented whenever anything is changed anywhere which could change the results
-eval_set_version = 14
+eval_set_version = 16
 
 
 class RunConfig:
@@ -41,8 +41,12 @@ class RunConfig:
         self.robust_config = robust_config
 
 
+def get_experiment_name(run_config: RunConfig) -> str:
+    return f"eval_set-{eval_set_version}-{run_config.name}-{run_config.dataset_kind}-{run_config.resolution}"
+
+
 def prepare_run(run_config: RunConfig) -> List[str]:
-    experiment_name = f"eval_set-{eval_set_version}-{run_config.name}-{run_config.dataset_kind}-{run_config.resolution}"
+    experiment_name = get_experiment_name(run_config)
 
     data_path = os.path.join(own_dataset_path, "suzanne", str(run_config.resolution), run_config.dataset_kind)
 
@@ -56,16 +60,18 @@ def prepare_run(run_config: RunConfig) -> List[str]:
         # "--logging.local-writer.max-log-size", "0",
         "--pipeline.datamanager.train_num_rays_per_batch", str(4096),
         "--pipeline.datamanager.eval_num_rays_per_batch", str(4096),
-        "--trainer.steps-per-eval-image", str(500),
-        "--trainer.steps-per-save", str(1000),
+        "--trainer.steps-per-eval-image", str(2500),
+        "--trainer.steps-per-save", str(5000),
         "--trainer.save_only_latest_checkpoint", str(False),  # keep all checkpoints
-        "--trainer.max_num_iterations", str(10001),
+        "--trainer.max_num_iterations", str(75001),
         "--pipeline.model.mono_depth_loss_mult", str(0.05),
         "--pipeline.model.mono_normal_loss_mult", str(0.05),
         "--pipeline.datamanager.sample_large_image_patches", str(run_config.sample_large_image_patches),
         "--pipeline.model.robust_loss_kernel_name", run_config.robust_config.robust_loss_kernel_name,
         "--pipeline.model.robust_loss_classify_patches_mode",
         run_config.robust_config.robust_loss_classify_patches_mode,
+        "--pipeline.model.robust_loss_combine_mode",
+        run_config.robust_config.robust_loss_combine_mode,
         "--pipeline.model.depth_loss_name",
         run_config.depth_loss_name,
     ]
@@ -113,8 +119,9 @@ def execute_run(arguments: List[str]):
 def main():
     run_configs = []
 
+
     for dataset_kind in ["clean", "distracted"]:
-        for resolution in [128, 512]:
+        for resolution in [512]:
             run_configs.append(RunConfig("baseline",
                                          dataset_kind=dataset_kind,
                                          resolution=resolution,
@@ -136,10 +143,10 @@ def main():
                                                  use_gt_distracted_mask=True
                                              )))
 
-    simple_percentile = 75.0
+    simple_percentile = 95.0
 
     for dataset_kind in ["distracted"]:
-        for resolution in [128, 512]:
+        for resolution in [512]:
             run_configs.append(RunConfig("simplePercentile",
                                          dataset_kind=dataset_kind,
                                          resolution=resolution,
@@ -150,21 +157,22 @@ def main():
                                              simple_percentile=simple_percentile
                                          )))
 
-    for dataset_kind in ["distracted"]:
-        for resolution in [128]:
-            run_configs.append(RunConfig("kernel",
-                                         dataset_kind=dataset_kind,
-                                         resolution=resolution,
-                                         use_gt_or_omnidata_maps="gt",
-                                         sample_large_image_patches=True,
-                                         depth_loss_name="L1Loss",
-                                         robust_config=RobustConfig(
-                                             robust_loss_kernel_name="Box_5x5",
-                                             simple_percentile=simple_percentile
-                                         )))
+    if False:
+        for dataset_kind in ["distracted"]:
+            for resolution in [512]:
+                run_configs.append(RunConfig("kernel",
+                                             dataset_kind=dataset_kind,
+                                             resolution=resolution,
+                                             use_gt_or_omnidata_maps="gt",
+                                             sample_large_image_patches=True,
+                                             depth_loss_name="L1Loss",
+                                             robust_config=RobustConfig(
+                                                 robust_loss_kernel_name="Box_5x5",
+                                                 simple_percentile=simple_percentile
+                                             )))
 
     for dataset_kind in ["distracted"]:
-        for resolution in [128, 512]:
+        for resolution in [512]:
             run_configs.append(RunConfig("kernelPatchesA",
                                          dataset_kind=dataset_kind,
                                          resolution=resolution,
@@ -177,18 +185,42 @@ def main():
                                              simple_percentile=simple_percentile
                                          )))
 
-    run_arguments: List[List[str]] = []
+    for dataset_kind in ["clean", "distracted"]:
+        for resolution in [512]:
+            for robust_loss_combine_mode in ["Majority"]:
+                run_configs.append(RunConfig("kernelPatchesACombine",
+                                             dataset_kind=dataset_kind,
+                                             resolution=resolution,
+                                             use_gt_or_omnidata_maps="gt",
+                                             sample_large_image_patches=True,
+                                             depth_loss_name="L1Loss",
+                                             robust_config=RobustConfig(
+                                                 robust_loss_kernel_name="Box_5x5",
+                                                 robust_loss_classify_patches_mode="A",
+                                                 simple_percentile=simple_percentile,
+                                                 robust_loss_combine_mode=robust_loss_combine_mode,
+                                             )))
+
+    run_arguments: List[Tuple[str, List[str]]] = []
     for run_config in run_configs:
         arguments = prepare_run(run_config)
-        run_arguments.append(arguments)
+        experiment_name = get_experiment_name(run_config)
+        run_arguments.append((experiment_name, arguments))
 
     run_arguments_with_index = [
-        (index, arguments) for (index, arguments) in enumerate(run_arguments)
+        (index, experiment_name, arguments) for (index, (experiment_name, arguments)) in enumerate(run_arguments)
     ]
 
-    run_arguments_with_index = run_arguments_with_index[0:1]
+    # run_arguments_with_index = run_arguments_with_index[0:1]
 
-    for index, arguments in run_arguments_with_index:
+    print("")
+    print("experiment_names:")
+    for index, experiment_name, arguments in run_arguments_with_index:
+        print(f"- {experiment_name}")
+
+    print("")
+
+    for index, experiment_name, arguments in run_arguments_with_index:
         print()
         print("run index: ", index)
         execute_run(arguments)

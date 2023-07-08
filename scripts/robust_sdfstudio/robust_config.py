@@ -18,9 +18,11 @@ class RobustConfig:
                  robust_loss_kernel_name: str = "NoKernel",
                  simple_percentile: Optional[float] = None,
                  robust_loss_classify_patches_mode: str = "Off",
+                 robust_loss_combine_mode: str = "Off",
                  ):
         self.use_gt_distracted_mask = use_gt_distracted_mask
         self.robust_loss_kernel_name = robust_loss_kernel_name
         self.simple_percentile = simple_percentile
         self.robust_loss_kernel_name = robust_loss_kernel_name
         self.robust_loss_classify_patches_mode = robust_loss_classify_patches_mode
+        self.robust_loss_combine_mode = robust_loss_combine_mode
