@@ -468,10 +468,17 @@ class VanillaPipeline(Pipeline):
                     print(f"Setting configuration '{configurations_setter.name}'")
                     configurations_setter.set_func(self)
 
+                    # Needed to fill the loss history so the the cutoff is the same for all batches of the image
+                    dummy_output_collection = OutputCollection()
+                    self.model.log_pixelwise_loss(ray_bundle=camera_ray_bundle, batch=batch, step=completed_image_count,
+                                                  log_group_name="X", image_width=image_width,
+                                                  image_height=image_height, output_collection=dummy_output_collection,
+                                                  eval_mode=True)
+
                     self.model.log_pixelwise_loss(ray_bundle=camera_ray_bundle, batch=batch, step=completed_image_count,
                                                   log_group_name="Train Images", image_width=image_width,
                                                   image_height=image_height, output_collection=output_collection,
-                                                  eval_mode=True)
+                                                  eval_mode=False)
 
                     if after_each_log_pixelwise_loss_callback is not None:
                         after_each_log_pixelwise_loss_callback(configurations_setter, output_collection)
