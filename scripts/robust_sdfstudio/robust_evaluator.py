@@ -159,12 +159,19 @@ class RobustEvaluator:
                              suffix=callback_configurations_setter.name)
             callback_output_collection.images_by_name.clear()  # Needed to limit total memory consumption
 
+        def after_each_image_callback(callback_main_output_collection: OutputCollection) -> None:
+            self.save_images(output_collection=callback_main_output_collection,
+                             experiment_output_images_directory_path=experiment_output_images_directory_path,
+                             suffix="default")
+            callback_main_output_collection.images_by_name.clear()  # Needed to limit total memory consumption
+
         loaded_pipeline.robust_get_average_eval_image_metrics(
             max_image_count=self.max_image_count,
             main_output_collection=main_output_collection,
             output_collections_for_configurations=output_collections_for_configurations,
             configurations_setters=configurations_setters,
             after_each_log_pixelwise_loss_callback=after_each_log_pixelwise_loss_callback,
+            after_each_image_callback=after_each_image_callback,
         )
 
         output_dict["configurations"] = {}
@@ -220,10 +227,8 @@ class RobustEvaluator:
         experiment_output_config_path.write_text(yaml.dump(output_dict), "utf8")
         CONSOLE.print(f"Saved results to: {experiment_output_config_path}")
 
-        self.save_images(output_collection=main_output_collection,
-                         experiment_output_images_directory_path=experiment_output_images_directory_path,
-                         suffix="default")
-        # images contained in output_collections_for_configurations have already been saved earlier so they are not all in memory at the same time
+        # images contained in main_output_collection and output_collections_for_configurations have already been
+        # saved earlier so they are not all in memory at the same time
 
         CONSOLE.print(f"Saved rendering results to: {experiment_output_images_directory_path}")
 

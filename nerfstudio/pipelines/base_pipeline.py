@@ -434,7 +434,9 @@ class VanillaPipeline(Pipeline):
                                               configurations_setters: List[ConfigurationsSetter],
                                               max_image_count: Optional[int] = None,
                                               after_each_log_pixelwise_loss_callback: Optional[
-                                                  Callable[[ConfigurationsSetter, OutputCollection], None]] = None
+                                                  Callable[[ConfigurationsSetter, OutputCollection], None]] = None,
+                                              after_each_image_callback: Optional[
+                                                  Callable[[OutputCollection], None]] = None,
                                               ) -> None:
         self.eval()
 
@@ -473,6 +475,9 @@ class VanillaPipeline(Pipeline):
 
                     if after_each_log_pixelwise_loss_callback is not None:
                         after_each_log_pixelwise_loss_callback(configurations_setter, output_collection)
+
+                if after_each_image_callback is not None:
+                    after_each_image_callback(main_output_collection)
 
                 progress.advance(task)
 
