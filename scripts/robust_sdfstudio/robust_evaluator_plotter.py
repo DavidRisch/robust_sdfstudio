@@ -14,6 +14,15 @@ import matplotlib.pyplot as plt
 
 import tyro
 
+pretty_figsize = (9, 8)
+
+pretty_confusion_names = {
+    "true_clean": "Predicted: clean  GT: clean",
+    "false_clean": "Predicted: clean  GT: distractor",
+    "true_distractor": "Predicted: distractor  GT: distractor",
+    "false_distractor": "Predicted: distractor  GT: clean",
+}
+
 
 @dataclass
 class RobustEvaluatorPlotter:
@@ -118,12 +127,12 @@ class RobustEvaluatorPlotter:
     @classmethod
     def plot_aggregated_mask_evaluator_results_line_part(cls, confusion_name: str, data_by_configuration_name: Dict,
                                                          pattern: str,
-                                                         ax: plt.axes.Axes):
+                                                         ax: plt.axes.Axes, pretty: bool = False):
 
         if pattern != "":
             patterns = [pattern]
         else:
-            patterns = ["percentile", "kernel_percentile", "kernel_patches_percentile"]
+            patterns = ["percentile_", "kernel_percentile_", "kernel_patches_percentile_"]
 
         for pattern in patterns:
             labels: List[str] = []
@@ -145,17 +154,29 @@ class RobustEvaluatorPlotter:
                 percentile_str = label[index + 1:]
                 x_values.append(int(percentile_str))
 
+            if pretty:
+                label = {
+                    "percentile_": "Percentile",
+                    "kernel_percentile_": "Percentile + diffusion",
+                    "kernel_patches_percentile_": "Percentile + diffusion + patches",
+                }[pattern]
+            else:
+                label = pattern
+
             ax.plot(
                 x_values,
                 y_values,
-                label=pattern
+                label=label
             )
+
+        if pretty:
+            confusion_name = pretty_confusion_names[confusion_name]
 
         ax.set_title(confusion_name)
         ax.set_xlim(0.0, 100.0)
         # ax.set_ylim(0.0, 1.0)
-        ax.set_xlabel("selected percentile")
-        ax.set_ylabel("average proportion of all pixels")
+        ax.set_xlabel("Selected percentile")
+        ax.set_ylabel("Average proportion of all pixels")
         ax.legend()
 
     @classmethod
@@ -163,14 +184,20 @@ class RobustEvaluatorPlotter:
                                                     data_by_configuration_name_by_loss_type_by_combine_mode: Dict[
                                                         str, Dict[str, Dict[str, Any]]],
                                                     pattern_name: str, pattern: str,
-                                                    plot_directory_path: Path):
+                                                    plot_directory_path: Path, pretty: bool):
         for combine_mode, data_by_configuration_name_by_loss_type in data_by_configuration_name_by_loss_type_by_combine_mode.items():
             for loss_type_name, data_by_configuration_name in data_by_configuration_name_by_loss_type.items():
                 figure_name = f"mask_evaluator_{combine_mode}_{loss_type_name}_aggregated_line_{pattern_name}"
                 # print(f"plot_aggregated_mask_evaluator_results_line {figure_name=}")
 
-                fig, axs = plt.subplots(2, 2, figsize=(18, 16))
-                fig.suptitle(figure_name)
+                if pretty:
+                    figsize = pretty_figsize
+                else:
+                    figsize = (18, 16)
+
+                fig, axs = plt.subplots(2, 2, figsize=figsize)
+                if not pretty:
+                    fig.suptitle(figure_name)
 
                 for confusion_name, ax_index in [("true_clean", (0, 0)),
                                                  ("false_clean", (1, 0)),
@@ -179,8 +206,10 @@ class RobustEvaluatorPlotter:
                     cls.plot_aggregated_mask_evaluator_results_line_part(confusion_name=confusion_name,
                                                                          data_by_configuration_name=data_by_configuration_name,
                                                                          pattern=pattern,
-                                                                         ax=axs[ax_index[0]][ax_index[1]])
+                                                                         ax=axs[ax_index[0]][ax_index[1]],
+                                                                         pretty=pretty)
 
+                fig.tight_layout()
                 fig.savefig(plot_directory_path / f"{figure_name}.png")
                 plt.close(fig)
 
@@ -215,6 +244,13 @@ class RobustEvaluatorPlotter:
                 percentile_str = label[index + 1:]
                 x_values.append(int(percentile_str))
 
+            if pretty:
+                combine_mode = {
+                    "AnyDistracted": "veto voting",
+                    "AllDistracted": "unanimous voting",
+                    "Majority": "majority voting",
+                }[combine_mode]
+
             ax.plot(
                 x_values,
                 y_values,
@@ -222,18 +258,13 @@ class RobustEvaluatorPlotter:
             )
 
         if pretty:
-            confusion_name = {
-                "true_clean": "Predicted: clean  GT: clean",
-                "false_clean": "Predicted: clean  GT: distractor",
-                "true_distractor": "Predicted: distractor  GT: distractor",
-                "false_distractor": "Predicted: distractor  GT: clean",
-            }[confusion_name]
+            confusion_name = pretty_confusion_names[confusion_name]
 
         ax.set_title(confusion_name)
         ax.set_xlim(0.0, 100.0)
         # ax.set_ylim(0.0, 1.0)
-        ax.set_xlabel("selected percentile")
-        ax.set_ylabel("average proportion of all pixels")
+        ax.set_xlabel("Selected percentile")
+        ax.set_ylabel("Average proportion of all pixels")
         ax.legend()
 
     @classmethod
@@ -251,7 +282,7 @@ class RobustEvaluatorPlotter:
             print(f"plot_aggregated_mask_evaluator_results_line2 {figure_name=}")
 
             if pretty:
-                figsize = (12, 11)
+                figsize = pretty_figsize
             else:
                 figsize = (18, 16)
 
@@ -322,7 +353,8 @@ class RobustEvaluatorPlotter:
                 cls.plot_aggregated_mask_evaluator_results_line(
                     data_by_configuration_name_by_loss_type_by_combine_mode=data_by_configuration_name_by_loss_type_by_combine_mode,
                     pattern_name=pattern_name, pattern=pattern,
-                    plot_directory_path=plot_directory_path)
+                    plot_directory_path=plot_directory_path,
+                    pretty=pretty)
 
     def main(self) -> None:
         with open(self.yaml_path, "r") as in_file:

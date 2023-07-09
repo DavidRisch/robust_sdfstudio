@@ -61,6 +61,9 @@ class RobustEvaluator:
             print(f"used dataset directory: {current_config.pipeline.datamanager.dataparser.data}")
             current_config.pipeline.model.with_detailed_eval_of_combine_mode = True
 
+            # current_config.trainer.load_step = 1500
+            # print(f"set trainer.load_step to {current_config.trainer.load_step}")
+
         loaded_config, loaded_pipeline, checkpoint_path = eval_setup(config_path=self.load_config,
                                                                      override_config_func=override_config_func)
         # print("loaded_config", loaded_config)
@@ -107,12 +110,13 @@ class RobustEvaluator:
                 RobustConfig()
             )))
 
-        configurations_setters.append(
-            ConfigurationsSetter(f"gt_distracted_mask", create_configuration_setter_func(
-                RobustConfig(
-                    use_gt_distracted_mask=True,
-                )
-            )))
+        if False:
+            configurations_setters.append(
+                ConfigurationsSetter(f"gt_distracted_mask", create_configuration_setter_func(
+                    RobustConfig(
+                        use_gt_distracted_mask=True,
+                    )
+                )))
 
         # for plots:
         percentile_values = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99]
