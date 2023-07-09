@@ -465,7 +465,8 @@ class VanillaPipeline(Pipeline):
 
                     self.model.log_pixelwise_loss(ray_bundle=camera_ray_bundle, batch=batch, step=completed_image_count,
                                                   log_group_name="Train Images", image_width=image_width,
-                                                  image_height=image_height, output_collection=output_collection)
+                                                  image_height=image_height, output_collection=output_collection,
+                                                  eval_mode=True)
 
                 progress.advance(task)
 

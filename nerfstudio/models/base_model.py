@@ -216,6 +216,6 @@ class Model(nn.Module):
         self.load_state_dict(state)  # type: ignore
 
     def log_pixelwise_loss(self, ray_bundle: RayBundle, batch: Dict, step: int, log_group_name: str, image_width: int,
-                           image_height: int, output_collection: OutputCollection):
+                           image_height: int, output_collection: OutputCollection, eval_mode: bool = False):
         print("WARNING: log_pixelwise_loss is not implemented for this model")
         return {}

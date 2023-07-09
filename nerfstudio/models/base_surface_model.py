@@ -663,7 +663,7 @@ class SurfaceModel(Model):
 
     @torch.no_grad()
     def log_pixelwise_loss(self, ray_bundle: RayBundle, batch: Dict, step: int, log_group_name: str, image_width: int,
-                           image_height: int, output_collection: OutputCollection):
+                           image_height: int, output_collection: OutputCollection, eval_mode: bool = False):
         result = {}
 
         if "indices" in batch:
@@ -782,7 +782,7 @@ class SurfaceModel(Model):
 
             self.get_loss_collection(
                 outputs=model_outputs, batch=batch_part,
-                use_for_loss_history=False,  # we don't want to infuence training while logging
+                use_for_loss_history=eval_mode,  # we don't want to infuence training while logging
                 pixel_coordinates_x=batch_part["pixel_coordinates_x"].to(self.device),
                 pixel_coordinates_y=batch_part["pixel_coordinates_y"].to(self.device),
                 all_loss_collection_steps=all_loss_collection_steps)
