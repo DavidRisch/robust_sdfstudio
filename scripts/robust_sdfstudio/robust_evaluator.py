@@ -152,11 +152,20 @@ class RobustEvaluator:
             OutputCollection() for _ in range(len(configurations_setters))
         ]
 
+        def after_each_log_pixelwise_loss_callback(callback_configurations_setter: ConfigurationsSetter,
+                                                   callback_output_collection: OutputCollection) -> None:
+            self.save_images(output_collection=callback_output_collection,
+                             experiment_output_images_directory_path=experiment_output_images_directory_path,
+                             suffix=callback_configurations_setter.name)
+            callback_output_collection.images_by_name.clear()  # Needed to limit total memory consumption
+
         loaded_pipeline.robust_get_average_eval_image_metrics(
             max_image_count=self.max_image_count,
             main_output_collection=main_output_collection,
             output_collections_for_configurations=output_collections_for_configurations,
-            configurations_setters=configurations_setters)
+            configurations_setters=configurations_setters,
+            after_each_log_pixelwise_loss_callback=after_each_log_pixelwise_loss_callback,
+        )
 
         output_dict["configurations"] = {}
         for configurations_setter, output_collection in zip(configurations_setters,
@@ -214,11 +223,7 @@ class RobustEvaluator:
         self.save_images(output_collection=main_output_collection,
                          experiment_output_images_directory_path=experiment_output_images_directory_path,
                          suffix="default")
-        for configurations_setter, output_collection in zip(configurations_setters,
-                                                            output_collections_for_configurations):
-            self.save_images(output_collection=output_collection,
-                             experiment_output_images_directory_path=experiment_output_images_directory_path,
-                             suffix=configurations_setter.name)
+        # images contained in output_collections_for_configurations have already been saved earlier so they are not all in memory at the same time
 
         CONSOLE.print(f"Saved rendering results to: {experiment_output_images_directory_path}")
 

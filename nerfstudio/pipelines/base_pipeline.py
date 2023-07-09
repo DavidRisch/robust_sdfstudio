@@ -21,7 +21,7 @@ import typing
 from abc import abstractmethod
 from dataclasses import dataclass, field
 from time import time
-from typing import Any, Dict, List, Optional, Type, Union, cast
+from typing import Any, Dict, List, Optional, Type, Union, cast, Callable
 
 import torch
 import torch.distributed as dist
@@ -432,7 +432,10 @@ class VanillaPipeline(Pipeline):
     def robust_get_average_eval_image_metrics(self, main_output_collection: OutputCollection,
                                               output_collections_for_configurations: List[OutputCollection],
                                               configurations_setters: List[ConfigurationsSetter],
-                                              max_image_count: Optional[int] = None) -> None:
+                                              max_image_count: Optional[int] = None,
+                                              after_each_log_pixelwise_loss_callback: Optional[
+                                                  Callable[[ConfigurationsSetter, OutputCollection], None]] = None
+                                              ) -> None:
         self.eval()
 
         dataloader = self.datamanager.fixed_indices_eval_dataloader
@@ -467,6 +470,9 @@ class VanillaPipeline(Pipeline):
                                                   log_group_name="Train Images", image_width=image_width,
                                                   image_height=image_height, output_collection=output_collection,
                                                   eval_mode=True)
+
+                    if after_each_log_pixelwise_loss_callback is not None:
+                        after_each_log_pixelwise_loss_callback(configurations_setter, output_collection)
 
                 progress.advance(task)
 
