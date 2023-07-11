@@ -1,3 +1,13 @@
+# Robust Neural Surface Reconstruction
+
+This repo is part of a project for the ADL4CV: Visual Computing course at the Technical University of Munich (TUM).
+It contains modification to NeuS-facto which significantly improve its ability to deal with distractors (e.g. moving objects) in the training images.
+
+Project page: https://davidrisch.github.io/robust_sdfstudio/
+
+<br>
+<br>
+
 <p align="center">
     <img alt="nerfstudio" src="media/sdf_studio_4.png" width="300">
     <h1 align="center">A Unified Framework for Surface Reconstruction</h1>
