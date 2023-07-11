@@ -58,7 +58,7 @@
                         <div class="publication-links">
                             <!-- PDF Link. -->
                             <span class="link-block">
-                <a href="TODO.pdf"
+                <a href="./resources/Robust_Neural_Surface_Reconstruction_Poster.pdf"
                    class="external-link button is-normal is-rounded is-dark">
                   <span class="icon">
                       <i class="fas fa-file-pdf"></i>
@@ -102,26 +102,42 @@
     </div>
 </section>
 
-<section class="hero teaser">
-    <div class="container is-max-desktop">
-        <div class="hero-body">
+<div class="container is-max-widescreen" style="margin-bottom: 100px;">
+    <div class="columns">
+        <div class="column">
             <video autoplay muted loop playsinline height="100%">
-                <source src="./resources/test_video.mp4"
+                <source src="./resources/baseline_clean_suzanne.mp4"
                         type="video/mp4">
             </video>
-            <h2 class="subtitle has-text-centered" style="margin-top: 15px">
-                Placeholder
+            <h2 class="subtitle has-text-centered" style="margin-top: 5px;">
+                Baseline NeuS-facto trained on our dataset <b>without</b> distractors
             </h2>
             <video autoplay muted loop playsinline height="100%">
-                <source src="./resources/test_video.mp4"
+                <source src="./resources/baseline_distracted_suzanne.mp4"
                         type="video/mp4">
             </video>
-            <h2 class="subtitle has-text-centered" style="margin-top: 15px">
-                Placeholder
+            <h2 class="subtitle has-text-centered" style="margin-top: 5px">
+                Baseline NeuS-facto trained on our dataset <b>with</b> distractors
+            </h2>
+        </div>
+        <div class="column">
+            <video autoplay muted loop playsinline height="100%">
+                <source src="./resources/simple_percentile_suzanne.mp4"
+                        type="video/mp4">
+            </video>
+            <h2 class="subtitle has-text-centered" style="margin-top: 5px">
+                Our method (channel wise percentile only) trained on our dataset <b>with</b> distractors
+            </h2>
+            <video autoplay muted loop playsinline height="100%">
+                <source src="./resources/patches_kernel_majority_suzanne.mp4"
+                        type="video/mp4">
+            </video>
+            <h2 class="subtitle has-text-centered" style="margin-top: 5px">
+                Our full method trained on our dataset <b>with</b> distractors
             </h2>
         </div>
     </div>
-</section>
+</div>
 
 
 <footer class="footer">
