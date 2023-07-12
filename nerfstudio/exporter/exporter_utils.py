@@ -131,7 +131,7 @@ def generate_point_cloud(
         while not progress_bar.finished:
             torch.cuda.empty_cache()
             with torch.no_grad():
-                ray_bundle, _ = pipeline.datamanager.next_train(0)
+                ray_bundle, batch = pipeline.datamanager.next_train(0)
                 outputs = pipeline.model(ray_bundle)
             if rgb_output_name not in outputs:
                 CONSOLE.rule("Error", style="red")
@@ -143,8 +143,16 @@ def generate_point_cloud(
                 CONSOLE.print(f"Could not find {depth_output_name} in the model outputs", justify="center")
                 CONSOLE.print(f"Please set --depth_output_name to one of: {outputs.keys()}", justify="center")
                 sys.exit(1)
-            rgb = outputs[rgb_output_name]
-            depth = outputs[depth_output_name]
+
+            rgb_old = outputs[rgb_output_name]
+            depth_old = outputs[depth_output_name]
+
+            # Hack to get the ground truth point cloud
+            rgb = batch["image"].to(rgb_old.device)
+            depth = batch["depth"].reshape(depth_old.shape).to(depth_old.device)
+            depth = (depth * 50 + 0.5)
+
+
             if normal_output_name is not None:
                 if normal_output_name not in outputs:
                     CONSOLE.rule("Error", style="red")
@@ -165,7 +173,9 @@ def generate_point_cloud(
                     comp_l < comp_m
                 ), f"Bounding box min {bounding_box_min} must be smaller than max {bounding_box_max}"
                 mask = torch.all(torch.concat([point > comp_l, point < comp_m], dim=-1), dim=-1)
+                # print("a", point.shape)
                 point = point[mask]
+                # print("b", point.shape)
                 rgb = rgb[mask]
                 if normal_output_name is not None:
                     normal = normal[mask]
